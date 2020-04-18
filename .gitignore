@@ -1,0 +1,4 @@
+/target
+/target_static
+Cargo.lock
+/staticlib/Cargo.lock

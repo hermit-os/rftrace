@@ -1,0 +1,31 @@
+[package]
+name = "tracer-rs"
+version = "0.1.0"
+authors = ["tom"]
+edition = "2018"
+build = "build.rs"
+
+[features]
+staticlib = []
+
+#[lib]
+# we want to create .a file!
+#crate-type = ['staticlib'] # problem: "compiler never links against staticlib"
+#crate-type = ['rlib']
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+#crossbeam = "0.7.3"
+#thread_local = "1.0.1"
+#alloc-tls = "0.2.0"
+#state = { version = "0.4", features = ["tls"] }
+#lazy_static = "1.4.0"
+
+#[target.'cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), target_os = "hermit"))'.dependencies]
+#hermit-sys = { path = "../rusty-hermit/hermit-sys" }
+
+#[workspace]
+#members = [
+#  "lib",
+#]
