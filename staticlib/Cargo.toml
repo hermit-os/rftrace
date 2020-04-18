@@ -1,9 +1,9 @@
 [package]
 name = "tracer-rs-static"
 version = "0.1.0"
-authors = ["tom"]
+authors = ["Thomas Lambertz <mail@thomaslambertz.de>"]
+license = "MIT/Apache-2.0"
 edition = "2018"
-#build = "build.rs"
 
 [features]
 staticlib = []
@@ -12,12 +12,7 @@ staticlib = []
 crate-type = ['staticlib']
 path = "../src/lib.rs"
 
-[dependencies]
-crossbeam = "0.7.3"
-#thread_local = "1.0.1"
-#alloc-tls = "0.2.0"
-#state = { version = "0.4", features = ["tls"] }
-lazy_static = "1.4.0"
-
-#[target.'cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), target_os = "hermit"))'.dependencies]
-#hermit-sys = { path = "../rusty-hermit/hermit-sys" }
+[profile.dev]
+# we have to define at least opt-level 1, else we get duplicate symbols! (runtime_entry, __rust_drop_panic, rust_begin_unwind, rust_panic, ...)
+# release profile has default level of 3, dev of 0
+opt-level = 1

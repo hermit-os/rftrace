@@ -1,39 +1,47 @@
 use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 use std::sync::Mutex;
-//use crossbeam::queue::ArrayQueue;
 use std::cell::RefCell;
 
+static mut ENABLED: bool = false;
+static mut INDEX: AtomicUsize = AtomicUsize::new(0);
+static mut EVENTS: [Event; 10000] = [Event::Empty; 10000];
+
+/// Mutex, which we use to determine if ANY thread is currently initializing. TODO: thread-local this?
+/// Needed, since we have to disable() to avoid infinite recursion on alloc of new-thread's retstack vec
+static mut CURRENTLY_INIT: AtomicBool = AtomicBool::new(false);
+
+// Issue: thread_local allocs on first access. I have no way of detecting first use per thread.
+// When it allocs it goes into infinite recursion, since kernel is used for alloc, which is hooked with mcount().
+// mcount then inits it again.
+// Solution: use THREAD_INIT to determine if inited, use a global disable-lock CURRENTLY_INIT
+thread_local! {
+    static RETSTACK: Box<RetStack> = Box::new(RetStack::new(1000));
+}
+
+/// Determines whether a thread is already initialited, ie it is safe to access RETSTACK, no recursion!
+#[thread_local]
+static mut THREAD_INIT: bool = false;
+
+
 #[derive(Debug, Clone, Copy)]
-enum Calltype {
-    Entry,
-    Exit
+enum Event {
+    Empty,
+    Entry(Call),
+    Exit(Exit)
 }
 
 #[derive(Debug, Clone, Copy)]
 struct Call {
-    ctype: Calltype,
     time: u64,
-    child: usize,
-    parent: usize,
+    from: *const usize,
+    to: *const usize,
 }
 
-// magic from https://stackoverflow.com/questions/54999851/how-do-i-get-the-return-address-of-a-function/56308426#56308426
-// We use llvm compiler intrinsic to get return address without having to know target / write asm
-// https://llvm.org/docs/LangRef.html
-extern {
-    // declare i8* @llvm.returnaddress(i32 <level>)
-    #[link_name = "llvm.returnaddress"]
-    fn return_address(_:i32) -> *const i8;
-    
-    // declare i8* @llvm.addressofreturnaddress()
-    #[link_name = "llvm.addressofreturnaddress"]
-    fn address_of_return_address() -> *const i8;
+#[derive(Debug, Clone, Copy)]
+struct Exit {
+    time: u64,
+    to: *const usize,
 }
-
-static mut ENABLED: bool = false;
-static mut INDEX: AtomicUsize = AtomicUsize::new(0);
-static mut CALLS: [Call; 10000] = [Call{ctype: Calltype::Entry, time:0, child: 0, parent: 0}; 10000];
-
 struct RetStack {
     vec: RefCell<Vec<SavedRet>>,
     capacity: usize,
@@ -55,31 +63,29 @@ impl RetStack {
 
     pub fn pop(&self) -> Option<SavedRet> {
         let mut vec = self.vec.borrow_mut();
-        return vec.pop() //.expect("RetStack empty!");
+        vec.pop()
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 struct SavedRet {
     stackloc: *mut *const usize,
-    retloc: usize,
+    retloc: *const usize,
 }
 
-/// Mutex, which we use to determine if ANY thread is currently initializing. TODO: thread-local this?
-/// Needed, since we have to disable() to avoid infinite recursion on alloc of new-thread's retstack vec
-static mut CURRENTLY_INIT: AtomicBool = AtomicBool::new(false);
 
-// Issue: thread_local allocs on first access. I have no way of detecting first use per thread.
-// When it allocs it goes into infinite recursion, since kernel is used for alloc, which is hooked with mcount().
-// mcount then inits it again.
-// Solution: use THREAD_INIT to determine if inited, use a global disable-lock CURRENTLY_INIT
-thread_local! {
-    static RETSTACK: RetStack = RetStack::new(1000);
+// magic from https://stackoverflow.com/questions/54999851/how-do-i-get-the-return-address-of-a-function/56308426#56308426
+// We use llvm compiler intrinsic to get return address without having to know target / write asm
+// https://llvm.org/docs/LangRef.html
+extern {
+    // declare i8* @llvm.returnaddress(i32 <level>)
+    #[link_name = "llvm.returnaddress"]
+    fn return_address(_:i32) -> *const i8;
+    
+    // declare i8* @llvm.addressofreturnaddress()
+    #[link_name = "llvm.addressofreturnaddress"]
+    fn address_of_return_address() -> *const i8;
 }
-
-/// Determines whether a thread is already initialited, ie it is safe to access RETSTACK, no recursion!
-#[thread_local]
-static mut THREAD_INIT: bool = false;
 
 
 #[naked]
@@ -96,15 +102,16 @@ pub extern "C" fn mcount() {
     // parents-return-addr is always stored at rbp+8
     // mcounts ret addr is directly at rsp
 
-    // from https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
+    // based on https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
     unsafe{
         if !ENABLED {
             return;
         } 
         asm!("
+        /* make some space for locals on the stack */
         sub $$48, %rsp
 
-        /* save register arguments in mcount_args */
+        /* save register arguments in mcount_args. Needed so we can later restore them */
         movq %rdi, 40(%rsp)
         movq %rsi, 32(%rsp)
         movq %rdx, 24(%rsp)
@@ -112,17 +119,19 @@ pub extern "C" fn mcount() {
         movq %r8,   8(%rsp)
         movq %r9,   0(%rsp)
 
-        /* child addr */
+        /* child addr = what function was mcount() called from */
         movq 48(%rsp), %rsi
 
-        /* parent location */
+        /* parent location = child-return-addr-ptr = what addr stores the location the child function was called from */
+        /* needed, since we overwrite it with our own trampoline. This way we can determine when the child function returns */
         lea 8(%rbp), %rdi
 
-        /* mcount_args */
-        movq %rsp, %rdx
 
-        /* align stack pointer to 16-byte */
+        /* align stack pointer to 16-byte, remember old value */
+        movq %rsp, %rdx
         andq $$0xfffffffffffffff0, %rsp
+
+        /* pass mcount_args to mcount_entry's 3rd argument */
         push %rdx
 
         /* save rax (implicit argument for variadic functions) */
@@ -130,6 +139,7 @@ pub extern "C" fn mcount() {
 
         call mcount_entry
 
+        /* restore rax */
         pop  %rax
 
         /* restore original stack pointer */
@@ -144,6 +154,7 @@ pub extern "C" fn mcount() {
         movq 32(%rsp), %rsi
         movq 40(%rsp), %rdi
 
+        /* revert stack pointer to original location and return */
         add $$48, %rsp
         retq
         "); 
@@ -152,23 +163,26 @@ pub extern "C" fn mcount() {
 
 
 #[no_mangle]
-pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *mut *const usize) {
+pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const usize) {
     // cannot use anything that calls a function in the kernel here!
     // Else we will have an infinite recursion!
     // OR: we temp disable. Multithread disabling guarded by CURRENTLY_INIT.
+    // NO PRINTING IN MCOUNT! Even if disabling before! (might be holding relevant lock or ref, so print() cannot succeed!)
 
     unsafe {
         if ENABLED {
             let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
-            CALLS[cidx % 10000] = Call {ctype: Calltype::Entry, time: 0, child: (child_ret as usize), parent: (parent_ret as usize)};
+            EVENTS[cidx % 10000] = Event::Entry(Call{time: 0, to: child_ret, from: *parent_ret});
+            /*if cidx > 9000 {
+                disable();
+            }*/
 
             // Avoid recursion on instanciating the lazy thread-local RETSTACK
-            // does NOT help, since initial access to INITIALIZED already borks it.
             if !THREAD_INIT {
                 // cannot define CURRENTLY_INIT as mutex and use something like
                 //let lock = CURRENTLY_INIT.try_lock(); 
-                // since it uses kernel -> might recurse!
-                
+                // since it uses kernel -> might recurse! --> use atomics instead.
+                //
                 // set currently init to true. If it was true, do nothing. Else init ourselves.
                 if !CURRENTLY_INIT.swap(true, Ordering::Relaxed) {
                     disable();
@@ -177,14 +191,14 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *mut *c
                     THREAD_INIT = true;
 
                     CURRENTLY_INIT.store(false, Ordering::Relaxed);
-                    // FIXME: we might be interrupted exactly here.
+                    // TODO/FIXME: we might be interrupted exactly here.
                     // another thread goes disable(), we go enable while it is initializing.
                     enable();
                 }
             } else {
                 // We are enabled and initialized, redirect return pointer to mcount_return_trampoline!
                 RETSTACK.with(|stack| {
-                    let sr = SavedRet{stackloc: parent_ret, retloc: *parent_ret as usize};
+                    let sr = SavedRet{stackloc: parent_ret, retloc: *parent_ret};
                     stack.push(sr);
                     *parent_ret = mcount_return_trampoline as *const usize;
                 });
@@ -196,56 +210,88 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *mut *c
 
 #[naked]
 pub extern "C" fn mcount_return_trampoline() {
-    // does nothing, except calling mcount_return. So we can easily modify its return pointer to the original functions one.
+    // does 'nothing', except calling mcount_return. Takes care to not clobber any return registers.
+    // based on https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
 
-    //unsafe{asm!("call mcount_return;")};
-    //or:
-    mcount_return();
-    panic!(); // should never return! needed to avoid optimization that call is converted to a jmp. We need the push from the call!
+    unsafe{
+        asm!("
+            /* space for locals (saved ret values) */
+            sub $$48, %rsp
+
+            /* save registers which could contain return values (missing xmm1 for full wikipedia/systemv compliance?) */
+            movdqu %xmm0, 16(%rsp)
+            movq   %rdx,   8(%rsp)
+            movq   %rax,   0(%rsp)
+
+            /* set the first argument of mcount_return as pointer to return values */
+            movq %rsp, %rdi
+
+            /* call mcount_return, which returns original parent address. Store it at the correct stack location */
+            call mcount_return
+            movq %rax, 40(%rsp)
+
+            /* restore saved return values */
+            movq    0(%rsp), %rax
+            movq    8(%rsp), %rdx
+            movdqu 16(%rsp), %xmm0
+
+            /* add only 40 to rsp, so the missing 8 become the new return pointer */
+            add $$40, %rsp
+            retq
+        ");
+    }
 }
 
 
 #[no_mangle]
-pub extern "C" fn mcount_return() {
+pub extern "C" fn mcount_return() -> *const usize {
     unsafe {
+        if !THREAD_INIT {
+            disable();
+            println!("Returned without initializing thread!");
+            panic!("Returned without initializing thread!");
+        }
 
-        let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
-        CALLS[cidx % 10000] = Call {ctype: Calltype::Exit, time: 0, child: 0, parent: 0};
-        
         let ret = address_of_return_address() as *mut *const usize;
-        *ret = RETSTACK.with(|stack| {
+        let original_ret = RETSTACK.with(|stack| {
             let sr = stack.pop().expect("retstack empty?");
 
-            // Sanity check return location.
-            if sr.stackloc != ret {
-                disable();
-                println!("Stack frame misalignment: {:?} {:?} {:?}", sr, ret, *ret);
-                //println!("Missing x stack frames: {}", stack.len());
-                while let Some(s) = stack.pop() {
-                    println!("{:?}", s);
+            // Sanity check return location. trampoline has 48 byte stack offset.
+            #[cfg(debug_assertions)]
+            {
+                if sr.stackloc as usize != ret as usize +48 {
+                    disable();
+                    println!("Stack frame misalignment: {:?} {:?}", sr, ret);
+                    //println!("Missing x stack frames: {}", stack.len());
+                    while let Some(s) = stack.pop() {
+                        println!("{:?}", s);
+                    }
+                    panic!("Stack frame misalignment!");
                 }
-                panic!("Stack frame misalignment!");
             }
-            sr.retloc as *const usize
+            sr.retloc
         });
+
+        let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
+        EVENTS[cidx % 10000] = Event::Exit(Exit{time: 0, to: original_ret});
+
+        original_ret
     }
 }
 
 
 pub fn print() {
     disable();
-    for c in unsafe{&CALLS[0..50]} {
-        println!("Call: {:?}", c);
+    for c in unsafe{&EVENTS[0..50]} {
+        println!("{:?}", c);
     }
 }
 
 pub fn disable() {
     unsafe{ENABLED = false;}
-    RETSTACK.with(|s| return);
 }
 
 pub fn enable() {
     println!("enabling mcount hooks..");
-    RETSTACK.with(|s| return);
     unsafe{ENABLED = true;}
 }

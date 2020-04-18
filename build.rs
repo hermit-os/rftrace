@@ -1,43 +1,60 @@
 use std::env;
 use std::process::{Command, Stdio};
 
+
 fn main() {
     println!("Exec build.rs!");
-    #[cfg(feature = "buildinternal")]
-    println!("Build internal set!!");
-    #[cfg(not(feature = "buildinternal"))]
-    println!("Build internal NOT set!!");
+    // Get envvars from cargo
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let target = env::var("TARGET").unwrap();
+    let full_target_dir = format!("{}/target_static", out_dir);
+    let profile = env::var("PROFILE").expect("PROFILE was not set");
 
-    #[cfg(not(feature = "buildinternal"))]
-    {
-        let _out_dir = env::var("OUT_DIR").unwrap();
-        let target_dir = "target_static";
-        //let full_target_dir = format!("{}/target_static", out_dir);
-        //let profile = env::var("PROFILE").expect("PROFILE was not set");
+    let mut cmd = Command::new("cargo");
+    cmd.arg("build");
 
-        println!("Stargins sub-cargo");
-        let status = Command::new("cargo")
-            //.current_dir("../libhermit-rs")
-            .arg("build")
-            .arg("--color")
-            .arg("always")
-            .arg("--target-dir")
-            .arg(target_dir)
-            .arg("--manifest-path")
-            .arg("staticlib/Cargo.toml")
-            .arg("--features")
-            .arg("staticlib")
-            .arg("-vv")
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()
-            .expect("Unable to build libtracerstatic");
-        assert!(status.success());
+    // Compile for the same target as the parent-lib
+    cmd.args(&["--target", &target]);
 
-        println!("Finished sub-cargo");
-        println!("{:?}", status);
+    // Output all build artifacts in output dir of parent-lib
+    cmd.args(&["--target-dir", &full_target_dir]);
 
-        println!("cargo:rustc-link-search=native={}/debug/", target_dir);
-        println!("cargo:rustc-link-lib=static=tracer_rs_static");
-    }
+    // Use custom manifest, which defines that this compilation is a staticlib
+    cmd.args(&["--manifest-path", "staticlib/Cargo.toml"]);
+
+    // Enable the staticlib feature, so we can do #[cfg(feature='staticlib')] gate our code
+    cmd.args(&["--features", "staticlib"]);
+
+    // Always output color, so eventhough we are cargo-in-cargo, we get nice error messages on build fail
+    cmd.args(&["--color", "always"]);
+
+    // Be very verbose
+    //cmd.arg("-vv");
+
+    // Redirect stdout and err, so we have live progress of compilation (?)
+    cmd.stdout(Stdio::inherit());
+    cmd.stderr(Stdio::inherit());
+
+    // Build standard, needed for hermitcore.. TODO: avoid rebuilding and use parent-libs one (?)
+    // parent's cargo does NOT expose -Z flags as envvar, but for RustyHermit, we want to be able to pass along the 'build-std' flags.
+    // We therefore use a feature flag for this
+    #[cfg(feature="buildstd")]
+    cmd.args(&["-Z", "build-std=std,core,alloc,panic_abort"]);
+
+    // Execute and get status.
+    println!("Starting sub-cargo");
+    let status = cmd.status().expect("Unable to build tracer's static lib!");
+    
+    // Panic on fail, so the build aborts and the error messages are printed
+    assert!(status.success(), "Unable to build tracer's static lib!");
+    println!("Sub-cargo successful!");
+
+    // Link parent-lib against this staticlib
+    println!("cargo:rustc-link-search=native={}/{}/{}/", &full_target_dir, &target, &profile);
+    println!("cargo:rustc-link-lib=static=tracer_rs_static");
+
+    // Just for dev
+    println!("cargo:rerun-if-changed=staticlib/Cargo.toml");
+    println!("cargo:rerun-if-changed=src/trace.rs");
+    println!("cargo:rerun-if-changed=src/lib.rs");
 }

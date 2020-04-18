@@ -3,9 +3,6 @@
 #![feature(asm)]
 #![feature(thread_local)]
 
-//#[macro_use]
-
-//extern crate lazy_static;
 #[cfg(feature = "staticlib")]
 pub mod trace;
 
