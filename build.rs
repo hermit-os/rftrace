@@ -7,10 +7,14 @@ fn main() {
     // Get envvars from cargo
     let out_dir = env::var("OUT_DIR").unwrap();
     let target = env::var("TARGET").unwrap();
+    //let target = "x86_64-unknown-hermit-kernel";
     let full_target_dir = format!("{}/target_static", out_dir);
     let profile = env::var("PROFILE").expect("PROFILE was not set");
+    let opt_level = env::var("OPT_LEVEL").expect("OPT_LEVEL was not set");
 
     let mut cmd = Command::new("cargo");
+    // we need nightly, since we use named-profiles. Crash when we dont have it as default.
+    //cmd.arg("+nightly");
     cmd.arg("build");
 
     // Compile for the same target as the parent-lib
@@ -41,6 +45,13 @@ fn main() {
     #[cfg(feature="buildstd")]
     cmd.args(&["-Z", "build-std=std,core,alloc,panic_abort"]);
 
+    // we have to MATCH THE HERMITKERNEL optlevel! else we get duplicate symbols! 
+    // (runtime_entry, __rust_drop_panic, rust_begin_unwind, rust_panic, ...)
+    // TODO: WHY?
+    cmd.args(&["-Z", "unstable-options"]);
+    cmd.args(&["--profile", &format!("{}-opt{}", &profile, &opt_level)]);
+    
+
     // Execute and get status.
     println!("Starting sub-cargo");
     let status = cmd.status().expect("Unable to build tracer's static lib!");
@@ -50,7 +61,7 @@ fn main() {
     println!("Sub-cargo successful!");
 
     // Link parent-lib against this staticlib
-    println!("cargo:rustc-link-search=native={}/{}/{}/", &full_target_dir, &target, &profile);
+    println!("cargo:rustc-link-search=native={}/{}/{}-opt{}/", &full_target_dir, &target, &profile, &opt_level);
     println!("cargo:rustc-link-lib=static=tracer_rs_static");
 
     // Just for dev

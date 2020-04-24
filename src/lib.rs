@@ -11,6 +11,7 @@ extern "C" {
     fn trs_enable();
     fn trs_disable();
     fn trs_print();
+    fn trs_dump_file_uftrace();
 }
 
 #[cfg(not(feature = "staticlib"))]
@@ -24,6 +25,10 @@ pub fn disable() {
 #[cfg(not(feature = "staticlib"))]
 pub fn print() {
     unsafe{trs_print()}
+}
+#[cfg(not(feature = "staticlib"))]
+pub fn dump_file_uftrace() {
+    unsafe{trs_dump_file_uftrace()}
 }
 
 
@@ -46,4 +51,11 @@ pub extern "C" fn trs_disable() {
 #[cfg(feature = "staticlib")]
 pub extern "C" fn trs_print() {
     trace::print();
+}
+
+#[cfg(feature = "staticlib")]
+#[no_mangle]
+#[cfg(feature = "staticlib")]
+pub extern "C" fn trs_dump_file_uftrace() {
+    trace::dump_file_uftrace();
 }

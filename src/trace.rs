@@ -1,10 +1,18 @@
 use std::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::cell::RefCell;
+use core::arch::x86_64::_rdtsc;
+//extern crate byteorder;
+use std::fs::File;
+use std::io::prelude::*;
+use byteorder::{WriteBytesExt, LittleEndian};
 
 static mut ENABLED: bool = false;
 static mut INDEX: AtomicUsize = AtomicUsize::new(0);
-static mut EVENTS: [Event; 10000] = [Event::Empty; 10000];
+static mut EVENTS: [Event; MAX_RECORDED_EVENTS] = [Event::Empty; MAX_RECORDED_EVENTS];
+
+const MAX_STACK_HEIGHT: usize = 1000;
+const MAX_RECORDED_EVENTS: usize = 1000000;
 
 /// Mutex, which we use to determine if ANY thread is currently initializing. TODO: thread-local this?
 /// Needed, since we have to disable() to avoid infinite recursion on alloc of new-thread's retstack vec
@@ -15,7 +23,7 @@ static mut CURRENTLY_INIT: AtomicBool = AtomicBool::new(false);
 // mcount then inits it again.
 // Solution: use THREAD_INIT to determine if inited, use a global disable-lock CURRENTLY_INIT
 thread_local! {
-    static RETSTACK: Box<RetStack> = Box::new(RetStack::new(1000));
+    static RETSTACK: Box<RetStack> = Box::new(RetStack::new(MAX_STACK_HEIGHT));
 }
 
 /// Determines whether a thread is already initialited, ie it is safe to access RETSTACK, no recursion!
@@ -40,7 +48,7 @@ struct Call {
 #[derive(Debug, Clone, Copy)]
 struct Exit {
     time: u64,
-    to: *const usize,
+    from: *const usize,
 }
 struct RetStack {
     vec: RefCell<Vec<SavedRet>>,
@@ -71,6 +79,7 @@ impl RetStack {
 struct SavedRet {
     stackloc: *mut *const usize,
     retloc: *const usize,
+    childip: *const usize,
 }
 
 
@@ -172,8 +181,8 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
     unsafe {
         if ENABLED {
             let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
-            EVENTS[cidx % 10000] = Event::Entry(Call{time: 0, to: child_ret, from: *parent_ret});
-            /*if cidx > 9000 {
+            EVENTS[cidx % MAX_RECORDED_EVENTS] = Event::Entry(Call{time: _rdtsc(), to: child_ret, from: *parent_ret});
+            /*if cidx > 90000 {
                 disable();
             }*/
 
@@ -198,7 +207,7 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
             } else {
                 // We are enabled and initialized, redirect return pointer to mcount_return_trampoline!
                 RETSTACK.with(|stack| {
-                    let sr = SavedRet{stackloc: parent_ret, retloc: *parent_ret};
+                    let sr = SavedRet{stackloc: parent_ret, retloc: *parent_ret, childip: child_ret};
                     stack.push(sr);
                     *parent_ret = mcount_return_trampoline as *const usize;
                 });
@@ -253,7 +262,7 @@ pub extern "C" fn mcount_return() -> *const usize {
         }
 
         let ret = address_of_return_address() as *mut *const usize;
-        let original_ret = RETSTACK.with(|stack| {
+        let (original_ret, childip) = RETSTACK.with(|stack| {
             let sr = stack.pop().expect("retstack empty?");
 
             // Sanity check return location. trampoline has 48 byte stack offset.
@@ -268,12 +277,24 @@ pub extern "C" fn mcount_return() -> *const usize {
                     }
                     panic!("Stack frame misalignment!");
                 }
+                if sr.retloc == mcount_return_trampoline as *const usize {
+                    // This happens when an interrupt interrupts while we are in mcount_return_trampoline?
+                    // But why is this very exact? hmm
+                    //disable();
+                    /*println!("Returning to mcount_return_trampoline. How does that happend?!");
+                    while let Some(s) = stack.pop() {
+                        println!("{:?}", s);
+                    }
+                    panic!("Return to mcount_return_trampoline!");*/
+
+                }
+
             }
-            sr.retloc
+            (sr.retloc, sr.childip)
         });
 
         let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
-        EVENTS[cidx % 10000] = Event::Exit(Exit{time: 0, to: original_ret});
+        EVENTS[cidx % MAX_RECORDED_EVENTS] = Event::Exit(Exit{time: _rdtsc(), from: childip});
 
         original_ret
     }
@@ -285,6 +306,12 @@ pub fn print() {
     for c in unsafe{&EVENTS[0..50]} {
         println!("{:?}", c);
     }
+    // this is only current task, for debug!
+    RETSTACK.with(|stack| {
+        while let Some(s) = stack.pop() {
+            println!("{:?}", s);
+        }
+    });
 }
 
 pub fn disable() {
@@ -294,4 +321,59 @@ pub fn disable() {
 pub fn enable() {
     println!("enabling mcount hooks..");
     unsafe{ENABLED = true;}
+}
+
+pub fn dump_file_uftrace() {
+    // Uftraces trace format: a bunch of 64-bit fields.
+    // two 64bit for one event. See https://github.com/namhyung/uftrace/wiki/Data-Format
+    // 
+    /* struct uftrace_record {
+        uint64_t time;
+        uint64_t type:   2;
+        uint64_t more:   1;
+        uint64_t magic:  3;
+        uint64_t depth:  10;
+        uint64_t addr:   48; /* child ip or uftrace_event_id */
+    }; */
+    // TODO: create enable lock?
+    disable();
+    println!("Saving trace to disk...!");
+    let mut out = Vec::<u8>::new();
+
+    let cidx = unsafe{INDEX.load(Ordering::Relaxed)} % MAX_RECORDED_EVENTS;
+    for e in unsafe{EVENTS[cidx..].iter().chain(EVENTS[..cidx].iter())} {
+        match e {
+            Event::Exit(e) => {
+                out.write_u64::<LittleEndian>(e.time);
+        
+                let mut addr = 0;
+                addr |= 1 << 0; // type = UFTRACE_EXIT
+                addr |= 0 << 2; // more, always 0
+                addr |= 0b101 << 3; // magic, always 0b101
+                addr |= (0 & ((1<<10) - 1)) << 6; // depth
+                addr |= (e.from as u64 & ((1<<48)-1)) << 16; // actual address, limited to 48 bit.
+                out.write_u64::<LittleEndian>(addr);
+            },
+            Event::Entry(e) => {
+                out.write_u64::<LittleEndian>(e.time);
+        
+                let mut addr = 0;
+                addr |= 0 << 0; // type = UFTRACE_ENTRY
+                addr |= 0 << 2; // more, always 0
+                addr |= 0b101 << 3; // magic, always 0b101
+                addr |= (0 & ((1<<10) - 1)) << 6; // depth
+                addr |= (e.to as u64 & ((1<<48)-1)) << 16; // actual address, limited to 48 bit.
+                out.write_u64::<LittleEndian>(addr);
+            }
+            Event::Empty => {
+                // Reached end of populated entries.
+                //println!("No further events found!");
+                continue;
+            }
+        }
+    }
+    println!("Writing to disk: {} events", out.len());
+    // TODO: error handling
+    let mut file = File::create("/myfs/trace.dat").expect("Could not create trace file!");
+    file.write_all(&out[..]).expect("Could not write trace file");
 }
