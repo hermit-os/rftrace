@@ -1,0 +1,70 @@
+From 2128c2bc21e00c5341a7859bbc83e32712732488 Mon Sep 17 00:00:00 2001
+From: Thomas Lambertz <mail@thomaslambertz.de>
+Date: Fri, 24 Apr 2020 02:26:59 +0200
+Subject: [PATCH] UNSAFE! virtiofsd: no namespacing, so uftrace works
+
+---
+ tools/virtiofsd/passthrough_ll.c | 17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/tools/virtiofsd/passthrough_ll.c b/tools/virtiofsd/passthrough_ll.c
+index e6f2399efc..2f13ae5c86 100644
+--- a/tools/virtiofsd/passthrough_ll.c
++++ b/tools/virtiofsd/passthrough_ll.c
+@@ -2550,10 +2550,10 @@ static void setup_namespaces(struct lo_data *lo, struct fuse_session *se)
+      * an empty network namespace to prevent TCP/IP and other network
+      * activity in case this process is compromised.
+      */
+-    if (unshare(CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWNET) != 0) {
++    /*if (unshare(CLONE_NEWPID | CLONE_NEWNS | CLONE_NEWNET) != 0) {
+         fuse_log(FUSE_LOG_ERR, "unshare(CLONE_NEWPID | CLONE_NEWNS): %m\n");
+         exit(1);
+-    }
++    }*/
+ 
+     child = fork();
+     if (child < 0) {
+@@ -2588,17 +2588,17 @@ static void setup_namespaces(struct lo_data *lo, struct fuse_session *se)
+      * If the mounts have shared propagation then we want to opt out so our
+      * mount changes don't affect the parent mount namespace.
+      */
+-    if (mount(NULL, "/", NULL, MS_REC | MS_SLAVE, NULL) < 0) {
++    /*if (mount(NULL, "/", NULL, MS_REC | MS_SLAVE, NULL) < 0) {
+         fuse_log(FUSE_LOG_ERR, "mount(/, MS_REC|MS_SLAVE): %m\n");
+         exit(1);
+-    }
++    }*/
+ 
+     /* The child must remount /proc to use the new pid namespace */
+-    if (mount("proc", "/proc", "proc",
++    /*if (mount("proc", "/proc", "proc",
+               MS_NODEV | MS_NOEXEC | MS_NOSUID | MS_RELATIME, NULL) < 0) {
+         fuse_log(FUSE_LOG_ERR, "mount(/proc): %m\n");
+         exit(1);
+-    }
++    }*/
+ 
+     /* Now we can get our /proc/self/fd directory file descriptor */
+     lo->proc_self_fd = open("/proc/self/fd", O_PATH);
+@@ -2706,7 +2706,8 @@ static void setup_sandbox(struct lo_data *lo, struct fuse_session *se,
+                           bool enable_syslog)
+ {
+     setup_namespaces(lo, se);
+-    setup_mounts(lo->source);
++    if(0)
++        setup_mounts(lo->source);
+     setup_seccomp(enable_syslog);
+ }
+ 
+@@ -2797,7 +2798,7 @@ static void setup_root(struct lo_data *lo, struct lo_inode *root)
+     int fd, res;
+     struct stat stat;
+ 
+-    fd = open("/", O_PATH);
++    fd = open(lo->source, O_PATH);
+     if (fd == -1) {
+         fuse_log(FUSE_LOG_ERR, "open(%s, O_PATH): %m\n", lo->source);
+         exit(1);
+-- 
+2.26.1
+
