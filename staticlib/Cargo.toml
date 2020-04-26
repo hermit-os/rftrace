@@ -1,5 +1,3 @@
-cargo-features = ["named-profiles"]
-
 [package]
 name = "tracer-rs-static"
 version = "0.1.0"
@@ -14,49 +12,11 @@ staticlib = []
 crate-type = ['staticlib']
 path = "../src/lib.rs"
 
-[dependencies]
-byteorder = "1.3.4"
-
 [profile.dev]
 panic = "abort"
+ # we have to build with at least opt-level 1. Might aswell do always 3, since mcount() is in the hotpath!
+opt-level = 3
 
 [profile.release]
 panic = "abort"
-
-# since we have to match opt-level, list all possible options here..
-[profile.debug-opt0]
-inherits = "dev"
-opt-level = 0
-[profile.debug-opt1]
-inherits = "dev"
-opt-level = 1
-[profile.debug-opt2]
-inherits = "dev"
-opt-level = 2
-[profile.debug-opt3]
-inherits = "dev"
 opt-level = 3
-[profile.debug-opts]
-inherits = "dev"
-opt-level = 's'
-[profile.debug-optz]
-inherits = "dev"
-opt-level = 'z'
-[profile.release-opt0]
-inherits = "release"
-opt-level = 0
-[profile.release-opt1]
-inherits = "release"
-opt-level = 1
-[profile.release-opt2]
-inherits = "release"
-opt-level = 2
-[profile.release-opt3]
-inherits = "release"
-opt-level = 3
-[profile.release-opts]
-inherits = "release"
-opt-level = 's'
-[profile.release-optz]
-inherits = "release"
-opt-level = 'z'

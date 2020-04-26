@@ -1,16 +1,28 @@
+#[cfg(feature="backend")]
 use std::env;
+#[cfg(feature="backend")]
 use std::process::{Command, Stdio};
 
 
-fn main() {
-    println!("Exec build.rs!");
+#[cfg(feature="backend")]
+fn build_backend() {
+    println!("Building Backend!");
     // Get envvars from cargo
     let out_dir = env::var("OUT_DIR").unwrap();
-    let target = env::var("TARGET").unwrap();
-    //let target = "x86_64-unknown-hermit-kernel";
     let full_target_dir = format!("{}/target_static", out_dir);
     let profile = env::var("PROFILE").expect("PROFILE was not set");
-    let opt_level = env::var("OPT_LEVEL").expect("OPT_LEVEL was not set");
+
+    // Set the target. file if shortcut-feature hermit is chosen.
+    // Else, allow overriding target via env-var
+    #[cfg(feature="hermit")]
+    let target = "x86_64-unknown-hermit-kernel";
+    #[cfg(not(feature="hermit"))]
+    let target = {
+        println!("cargo:rerun-if-env-changed=TARGET_TARGET_TRIPLE");
+        env::var("TARGET_TARGET_TRIPLE").unwrap_or_else(|_| {
+            env::var("TARGET").unwrap()
+        })
+    };
 
     let mut cmd = Command::new("cargo");
     // we need nightly, since we use named-profiles. Crash when we dont have it as default.
@@ -39,18 +51,18 @@ fn main() {
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());
 
-    // Build standard, needed for hermitcore.. TODO: avoid rebuilding and use parent-libs one (?)
-    // parent's cargo does NOT expose -Z flags as envvar, but for RustyHermit, we want to be able to pass along the 'build-std' flags.
-    // We therefore use a feature flag for this
+    // Build core, needed when compiling against a kernel-target, such as x86_64-unknown-hermit-kernel.
+    // parent's cargo does NOT expose -Z flags as envvar, we therefore use a feature flag for this
     #[cfg(feature="buildstd")]
-    cmd.args(&["-Z", "build-std=std,core,alloc,panic_abort"]);
+    cmd.args(&["-Z", "build-std=core"]); // should be build std,alloc?
 
-    // we have to MATCH THE HERMITKERNEL optlevel! else we get duplicate symbols! 
-    // (runtime_entry, __rust_drop_panic, rust_begin_unwind, rust_panic, ...)
-    // TODO: WHY?
-    cmd.args(&["-Z", "unstable-options"]);
-    cmd.args(&["--profile", &format!("{}-opt{}", &profile, &opt_level)]);
+    // Compile staticlib as release if included in release build.
+    if profile == "release" {
+        cmd.arg("--release");
+    }
     
+    // Ensure rustflags does NOT contain instrument-mcount!
+    cmd.env("RUSTFLAGS", env::var("RUSTFLAGS").unwrap_or("".into()).replace("-Z instrument-mcount", ""));
 
     // Execute and get status.
     println!("Starting sub-cargo");
@@ -61,11 +73,16 @@ fn main() {
     println!("Sub-cargo successful!");
 
     // Link parent-lib against this staticlib
-    println!("cargo:rustc-link-search=native={}/{}/{}-opt{}/", &full_target_dir, &target, &profile, &opt_level);
+    println!("cargo:rustc-link-search=native={}/{}/{}/", &full_target_dir, &target, &profile);
     println!("cargo:rustc-link-lib=static=tracer_rs_static");
 
-    // Just for dev
     println!("cargo:rerun-if-changed=staticlib/Cargo.toml");
-    println!("cargo:rerun-if-changed=src/trace.rs");
+    println!("cargo:rerun-if-changed=src/backend.rs");
+    println!("cargo:rerun-if-changed=src/interface.rs");
     println!("cargo:rerun-if-changed=src/lib.rs");
+}
+
+fn main() {
+    #[cfg(feature="backend")]
+    build_backend();
 }

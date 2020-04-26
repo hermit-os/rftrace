@@ -7,8 +7,16 @@ edition = "2018"
 build = "build.rs"
 
 [features]
-# controlls whether the stdlib is build with cargo -Z build-std=std,core,alloc,panic_abort
-buildstd = []
+default = ["frontend"]
+
+# controlls whether the stdlib is build with cargo -Z build-std=core
+buildstd = ["backend"]
+backend = []
+hermit = ["buildstd"] # sets some defaults, so no env-vars are needed.
+frontend = ["byteorder"]
 
 [lib]
 crate-type = ['rlib']
+
+[dependencies]
+byteorder = {version="1.3.2", optional = true}
