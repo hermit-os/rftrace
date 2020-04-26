@@ -18,8 +18,9 @@ struct SavedRet {
 }
 
 static mut ENABLED: bool = false;
+static mut OVERWRITING: bool = false; // should the ring-buffer be overwritten once full?
 static mut INDEX: AtomicUsize = AtomicUsize::new(0);
-static mut EVENTS: [Event; MAX_RECORDED_EVENTS] = [Event::Empty; MAX_RECORDED_EVENTS];
+static mut EVENTS: Option<&mut [Event]> = None ;
 
 // !! Will always be initialized to all 0 by the OS, no matter what. This is just to make the compiler happy
 #[thread_local]
@@ -154,13 +155,6 @@ pub extern "C" fn mcount() {
 pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const usize) {
     unsafe {
         if ENABLED {
-            // Get current globally-unique-event-index
-            let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
-            if cidx >= MAX_RECORDED_EVENTS - MAX_STACK_HEIGHT {
-                disable();
-                return;
-            }
-
             let tid = TID.get_or_insert_with(|| {
                 // We are not yet initialized, do it now
                 // Would only fail if we overflow TID_NEXT, which is 64bit.
@@ -168,7 +162,22 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
             });
 
             // Save call to global events ringbuffer
-            EVENTS[cidx % MAX_RECORDED_EVENTS] = Event::Entry(Call{time: _rdtsc(), to: child_ret, from: *parent_ret, tid: TID.as_ref().copied()});
+            if let Some(events) = &mut EVENTS {
+                // Get current globally-unique-event-index
+                let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
+                if !OVERWRITING && cidx >= events.len() - MAX_STACK_HEIGHT {
+                    disable();
+                    return;
+                }
+
+                events[cidx % events.len()] = Event::Entry(
+                    Call{
+                        time: _rdtsc(),
+                        to: child_ret,
+                        from: *parent_ret,
+                        tid: TID.as_ref().copied()
+                    });
+            }
 
             let sr = SavedRet{stackloc: parent_ret, retloc: *parent_ret, childip: child_ret};
             // Do not overwrite ret-ptr if returnstack is full 
@@ -227,7 +236,14 @@ pub extern "C" fn mcount_return() -> *const usize {
         };
 
         let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
-        EVENTS[cidx % MAX_RECORDED_EVENTS] = Event::Exit(Exit{time: _rdtsc(), from: childip, tid: TID.as_ref().copied()});
+        if let Some(events) = &mut EVENTS {
+            events[cidx % events.len()] = Event::Exit(
+                Exit{
+                    time: _rdtsc(),
+                    from: childip,
+                    tid: TID.as_ref().copied()
+                });
+        }
 
         original_ret
     }
@@ -243,15 +259,14 @@ fn enable() {
     unsafe{ENABLED = true;}
 }
 
-fn init(retstackbuf: &'static mut [RetStack]) {
+fn set_eventbuf(eventbuf: &'static mut [Event]) {
     unsafe {
-        if UNUSED_RETSTACK_BUF.is_some() {
+        if EVENTS.is_some() {
             // ERROR! already initialized
             return;
         }
         
-        UNUSED_RETSTACK_BUF.replace(retstackbuf);
-        UNUSED_RETSTACK_BUF_MUTEX.store(false, Ordering::Relaxed);
+        EVENTS.replace(eventbuf);
     }
 }
 
@@ -264,7 +279,7 @@ pub extern "C" fn trs_get_events_index() -> usize {
 
 #[no_mangle]
 pub extern "C" fn trs_get_events() -> *const Event {
-    return unsafe{EVENTS.as_ptr()};
+    return unsafe{EVENTS.take().map(|e| e.as_ptr()).unwrap_or(0 as *const Event)};
 }
 
 #[no_mangle]
@@ -278,11 +293,17 @@ pub fn trs_enable() {
 }
 
 #[no_mangle]
-pub extern "C" fn trs_init(/*bufptr: *mut RetStack, len: usize*/) {
-    /*let retstackbuf = unsafe {
+pub extern "C" fn trs_init(bufptr: *mut Event, len: usize, overwriting: bool) {
+    let eventbuf = unsafe {
         assert!(!bufptr.is_null());
         slice::from_raw_parts_mut(bufptr, len)
     };
 
-    init(retstackbuf);*/
+    assert!(len > MAX_STACK_HEIGHT, "Event buffer has to be larger than maximum stack height!");
+
+    unsafe{
+        OVERWRITING = overwriting;
+    }
+
+    set_eventbuf(eventbuf);
 }

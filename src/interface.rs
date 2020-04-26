@@ -1,5 +1,4 @@
 pub const MAX_STACK_HEIGHT: usize = 1000;
-pub const MAX_RECORDED_EVENTS: usize = 1500000;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]

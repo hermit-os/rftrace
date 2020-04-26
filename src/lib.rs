@@ -9,10 +9,15 @@
 #[cfg(feature = "frontend")]
 extern crate byteorder;
 
-pub mod interface;
+mod interface;
 
 #[cfg(feature = "staticlib")]
-pub mod backend;
+mod backend;
 
 #[cfg(feature = "frontend")]
-pub mod frontend;
+mod frontend;
+
+
+// Re-export frontend functions
+#[cfg(feature = "frontend")]
+pub use frontend::*;

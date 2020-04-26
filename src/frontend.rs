@@ -1,4 +1,3 @@
-use std::slice;
 use std::fs::File;
 use std::io::{self, prelude::*};
 use byteorder::{WriteBytesExt, LittleEndian};
@@ -7,7 +6,7 @@ use crate::interface::*;
 extern "C" {
     pub fn trs_enable();
     pub fn trs_disable();
-    pub fn trs_init(/*bufptr: *mut RetStack, len: usize*/);
+    pub fn trs_init(bufptr: *mut Event, len: usize, overwriting: bool);
     pub fn trs_get_events() -> *const Event;
     pub fn trs_get_events_index() -> usize;
 }
@@ -20,26 +19,44 @@ pub fn disable() {
     unsafe{trs_disable()}
 }
 
-pub fn get_events() -> (&'static [Event], usize) {
-    let events = unsafe {
-        slice::from_raw_parts(trs_get_events(), MAX_RECORDED_EVENTS)
-    };
+/// Used to keep track of event buffer given to the staticlib
+#[derive(Copy, Clone, Debug)]
+pub struct Events {
+    ptr: *mut Event,
+    len: usize,
+    cap: usize,
+}
+
+fn get_events(events: Events) -> (Vec<Event>, usize) {
+    // Tell backend to not use the current buffer anymore.
+    let ptr = unsafe {trs_get_events()};
+    println!("{:?}, {:?}", ptr, events);
+    assert!(ptr == events.ptr, "Event buffer pointer mismatch!");
+
+    let eventvec = unsafe{ Vec::from_raw_parts(events.ptr, events.len, events.cap) };
+
     let idx = unsafe { trs_get_events_index() };
-    (events, idx)
+    (eventvec, idx)
 }
 
 
-pub fn init() {
-    /*let buf = Vec::<RetStack>::with_capacity(10);
+/// Initializes a new event buffer of size max_event_count.
+/// if 'overwriting', treats it as a ring-buffer, keeping only the most-recent entries.
+/// otherwise, stopps logging once it is full.
+/// max_event_count has to be at least 1000.
+pub fn init(max_event_count: usize, overwriting: bool) -> Events {
+    assert!(max_event_count > MAX_STACK_HEIGHT, "Event buffer has to be larger than maximum stack height!");
+    let buf = vec![Event::Empty; max_event_count];
     unsafe {
         // intentionally leak here! stacks have to live until end of application.
-        let (ptr, _len, cap) = buf.into_raw_parts();
-        trs_init(ptr, cap)
-    }*/
+        let (ptr, len, cap) = buf.into_raw_parts();
+        trs_init(ptr, cap, overwriting);
+        return Events{ptr, len, cap};
+    }
 }
 
 
-pub fn dump_full_uftrace(out_dir: &str, binary_name: &str) -> io::Result<()> {
+pub fn dump_full_uftrace(events: Events, out_dir: &str, binary_name: &str) -> io::Result<()> {
     //! Dumps the traces with some faked metadata into out_dir. Can be directly parsed with uftrace.
     //! 
     //! Will NOT generate symbols! You can generate them with `nm -n $BINARY > binary_name.sym`
@@ -53,7 +70,7 @@ pub fn dump_full_uftrace(out_dir: &str, binary_name: &str) -> io::Result<()> {
     let sid = "00";
 
     // First lets create all traces.
-    let tids = dump_traces(out_dir, false)?;
+    let tids = dump_traces(events, out_dir, false)?;
 
 
     println!("Creating fake uftrace data dir at {}..", out_dir);
@@ -132,13 +149,13 @@ pub fn dump_full_uftrace(out_dir: &str, binary_name: &str) -> io::Result<()> {
 }
 
 
-pub fn dump_trace(outfile: &str) -> io::Result<()> {
-    dump_traces(outfile, true)?;
+pub fn dump_trace(events: Events, outfile: &str) -> io::Result<()> {
+    dump_traces(events, outfile, true)?;
     Ok(())
 }
 
 
-fn dump_traces(outpath: &str, singlefile: bool) -> io::Result<Vec<u64>> {
+fn dump_traces(events: Events, outpath: &str, singlefile: bool) -> io::Result<Vec<u64>> {
     // Uftraces trace format: a bunch of 64-bit fields.
     // two 64bit for one event. See https://github.com/namhyung/uftrace/wiki/Data-Format
     // 
@@ -155,11 +172,12 @@ fn dump_traces(outpath: &str, singlefile: bool) -> io::Result<Vec<u64>> {
     disable();
     println!("Saving traces to disk...!");
 
-    // To avoid to many reallocs, use array with maximum size for all traces.
-    let mut out = Vec::<u8>::with_capacity(16*MAX_RECORDED_EVENTS);
     
-    let (events, cidx) = get_events();
-    let cidx = cidx % MAX_RECORDED_EVENTS;
+    let (events, cidx) = get_events(events);
+    let cidx = cidx % events.len();
+
+    // To avoid to many reallocs, use array with maximum size for all traces.
+    let mut out = Vec::<u8>::with_capacity(16*events.len());
 
     // Keep track of tids so we can assemble metadata
     let mut tids: Vec<u64> = Vec::new();
