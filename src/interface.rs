@@ -25,18 +25,3 @@ pub struct Exit {
     pub from: *const usize,
     pub tid: Option<core::num::NonZeroU64>,
 }
-
-#[repr(C)]
-pub struct RetStack {
-    pub stack: [SavedRet; MAX_STACK_HEIGHT],
-    pub index: usize,
-    pub capacity: usize,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-pub struct SavedRet {
-    pub stackloc: *mut *const usize,
-    pub retloc: *const usize,
-    pub childip: *const usize,
-}

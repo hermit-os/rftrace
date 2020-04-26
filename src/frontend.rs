@@ -7,7 +7,7 @@ use crate::interface::*;
 extern "C" {
     pub fn trs_enable();
     pub fn trs_disable();
-    pub fn trs_init(bufptr: *mut RetStack, len: usize);
+    pub fn trs_init(/*bufptr: *mut RetStack, len: usize*/);
     pub fn trs_get_events() -> *const Event;
     pub fn trs_get_events_index() -> usize;
 }
@@ -30,12 +30,12 @@ pub fn get_events() -> (&'static [Event], usize) {
 
 
 pub fn init() {
-    let buf = Vec::<RetStack>::with_capacity(10);
+    /*let buf = Vec::<RetStack>::with_capacity(10);
     unsafe {
         // intentionally leak here! stacks have to live until end of application.
         let (ptr, _len, cap) = buf.into_raw_parts();
         trs_init(ptr, cap)
-    }
+    }*/
 }
 
 

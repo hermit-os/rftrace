@@ -1,17 +1,36 @@
 use core::sync::atomic::{AtomicUsize, AtomicU64, AtomicBool, Ordering};
-use core::cell::RefCell;
 use core::arch::x86_64::_rdtsc;
 use core::slice;
 
 use crate::interface::*;
 
+#[derive(Clone, Copy)]
+struct RetStack {
+    pub stack: [SavedRet; MAX_STACK_HEIGHT],
+    pub index: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SavedRet {
+    pub stackloc: *mut *const usize,
+    pub retloc: *const usize,
+    pub childip: *const usize,
+}
+
 static mut ENABLED: bool = false;
 static mut INDEX: AtomicUsize = AtomicUsize::new(0);
-pub static mut EVENTS: [Event; MAX_RECORDED_EVENTS] = [Event::Empty; MAX_RECORDED_EVENTS];
+static mut EVENTS: [Event; MAX_RECORDED_EVENTS] = [Event::Empty; MAX_RECORDED_EVENTS];
 
-
+// !! Will always be initialized to all 0 by the OS, no matter what. This is just to make the compiler happy
 #[thread_local]
-static mut RETSTACK: Option<&mut RetStack> = None;
+static mut RETSTACK: RetStack = RetStack {
+    stack: [ SavedRet{
+            stackloc: 0 as *mut*const usize,
+            retloc: 0 as *const usize,
+            childip: 0 as *const usize
+        }; MAX_STACK_HEIGHT],
+    index: 0
+};
 
 #[thread_local]
 static mut TID: Option<core::num::NonZeroU64> = None;
@@ -36,22 +55,19 @@ impl RetStack {
         RetStack{vec: RefCell::new(Vec::with_capacity(capacity)), capacity}
     }*/
 
-    pub fn init(&mut self) {
-        self.index = 0;
-        self.capacity = MAX_STACK_HEIGHT;
-    }
-
-    pub fn push(&mut self, item: SavedRet) {
-        if (self.index >= self.capacity) {
-            panic!("RetStack full!");
+    pub fn push(&mut self, item: SavedRet) -> Result<(), ()> {
+        if self.index >= self.stack.len() {
+            // Stack full!
+            return Err(());
         }
 
         self.stack[self.index] = item;
         self.index += 1;
+        Ok(())
     }
 
     pub fn pop(&mut self) -> Option<SavedRet> {
-        if (self.index == 0) {
+        if self.index == 0 {
             return None
         }
         self.index -= 1;
@@ -145,32 +161,20 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
                 return;
             }
 
-            let stack = RETSTACK.as_mut().or_else(|| {
-
+            let tid = TID.get_or_insert_with(|| {
                 // We are not yet initialized, do it now
-                if !UNUSED_RETSTACK_BUF_MUTEX.swap(true, Ordering::Relaxed) {
-                    // 'pop' first unused retstack from buffer
-                    // assume UNUSED.. is initialized
-                    if let Some((first, elements)) = UNUSED_RETSTACK_BUF.take().unwrap().split_first_mut() {
-                        first.init();
-                        RETSTACK = Some(first);
-                        UNUSED_RETSTACK_BUF.replace(elements);
-                    }
-                    UNUSED_RETSTACK_BUF_MUTEX.store(false, Ordering::Relaxed);
-
-                    TID = core::num::NonZeroU64::new(TID_NEXT.fetch_add(1, Ordering::Relaxed));
-                }
-                RETSTACK.as_mut()
+                // Would only fail if we overflow TID_NEXT, which is 64bit.
+                core::num::NonZeroU64::new(TID_NEXT.fetch_add(1, Ordering::Relaxed)).unwrap()
             });
 
             // Save call to global events ringbuffer
             EVENTS[cidx % MAX_RECORDED_EVENTS] = Event::Entry(Call{time: _rdtsc(), to: child_ret, from: *parent_ret, tid: TID.as_ref().copied()});
 
-            // Initialization might fail.
-            if let Some(stack) = stack {
-                //let tid = TID.as_ref().unwrap(); // Cant be None if stack is Some
-                let sr = SavedRet{stackloc: parent_ret, retloc: *parent_ret, childip: child_ret};
-                stack.push(sr);
+            let sr = SavedRet{stackloc: parent_ret, retloc: *parent_ret, childip: child_ret};
+            // Do not overwrite ret-ptr if returnstack is full 
+            // this will lead to truncation of the return events once a too big stack has been reached!
+            // TODO: warn the user about this?
+            if unsafe{RETSTACK.push(sr).is_ok()} {
                 *parent_ret = mcount_return_trampoline as *const usize;
             }
         }
@@ -216,9 +220,8 @@ pub extern "C" fn mcount_return_trampoline() {
 #[no_mangle]
 pub extern "C" fn mcount_return() -> *const usize {
     unsafe {
-        let stack = RETSTACK.as_mut().unwrap();
         let (original_ret, childip) = {
-            let sr = stack.pop().expect("retstack empty?");
+            let sr = unsafe{RETSTACK.pop().expect("retstack empty?")};
 
             (sr.retloc, sr.childip)
         };
@@ -275,11 +278,11 @@ pub fn trs_enable() {
 }
 
 #[no_mangle]
-pub extern "C" fn trs_init(bufptr: *mut RetStack, len: usize) {
-    let retstackbuf = unsafe {
+pub extern "C" fn trs_init(/*bufptr: *mut RetStack, len: usize*/) {
+    /*let retstackbuf = unsafe {
         assert!(!bufptr.is_null());
         slice::from_raw_parts_mut(bufptr, len)
     };
 
-    init(retstackbuf);
+    init(retstackbuf);*/
 }
