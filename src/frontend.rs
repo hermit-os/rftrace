@@ -55,8 +55,12 @@ pub fn init(max_event_count: usize, overwriting: bool) -> Events {
     }
 }
 
+extern "C" {
+    #[no_mangle]
+    static __executable_start: usize;
+}
 
-pub fn dump_full_uftrace(events: Events, out_dir: &str, binary_name: &str) -> io::Result<()> {
+pub fn dump_full_uftrace(events: Events, out_dir: &str, binary_name: &str, aslr_correct: bool) -> io::Result<()> {
     //! Dumps the traces with some faked metadata into out_dir. Can be directly parsed with uftrace.
     //! 
     //! Will NOT generate symbols! You can generate them with `nm -n $BINARY > binary_name.sym`
@@ -64,6 +68,9 @@ pub fn dump_full_uftrace(events: Events, out_dir: &str, binary_name: &str) -> io
     //! binary_name is only relevant for this symbol file. Generated metadata instructs uftrace where to look for it.
     //! 
     //! out_dir has to point to a folder, which has to exist.
+    //! 
+    //! aslr_correct: Log __executable_start offset, so uftrace can resolve symbol if ASLR is enabled.
+    //! this breaks on RustyHermit, since __executable_start points to 0x200000, but symbols are not reloc'd
 
     // arbitrary values for pid and sid
     let pid = 42;
@@ -140,10 +147,15 @@ pub fn dump_full_uftrace(events: Events, out_dir: &str, binary_name: &str) -> io
     println!("  Creating ./sid-{}.map memory map file", sid);
     let mapfile = format!("{}/sid-{}.map", out_dir, sid);
     let mut mapfile = File::create(mapfile)?;
-    write!(mapfile, "000000000000-ffffffffffff r-xp 00000000 00:00 0                          {}\n", binary_name)?;
+    let exec_start = if aslr_correct {
+        unsafe{&__executable_start as *const usize as usize} // start at __executable_start, so uftrace can resolve symbols if ASLR is on
+    } else {
+        0
+    };
+    write!(mapfile, "{:012x}-ffffffffffff r-xp 00000000 00:00 0                          {}\n", exec_start, binary_name)?;
     write!(mapfile, "ffffffffffff-ffffffffffff rw-p 00000000 00:00 0                          [stack]\n")?;
 
-    println!("  You should generate symbols with `nm -n $BINARY > {}.sym`", binary_name);
+    println!("  You should generate symbols with `nm -n $BINARY > {}/{}.sym`", out_dir, binary_name);
 
     Ok(())
 }
