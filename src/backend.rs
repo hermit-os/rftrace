@@ -155,11 +155,23 @@ pub extern "C" fn mcount() {
 pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const usize) {
     unsafe {
         if ENABLED {
-            let tid = TID.get_or_insert_with(|| {
-                // We are not yet initialized, do it now
-                // Would only fail if we overflow TID_NEXT, which is 64bit.
-                core::num::NonZeroU64::new(TID_NEXT.fetch_add(1, Ordering::Relaxed)).unwrap()
-            });
+            // HermitCore's task creation will set rbp to 0 in the first function for the task: task_entry()
+            // This means parent_ret (which is lea 8(%rbp)), will be 8 and we will crash on access.
+            // Other OS's likely do something similar. So we never do anything if we do not have our own TID yet,
+            // Which always happens on the first call. From the second onwards we log calls.
+            let tid = match TID {
+                None => {
+                    // We are not yet initialized, do it now
+                    // Would only fail if we overflow TID_NEXT, which is 64bit, then TID stays None (?)
+                    TID = core::num::NonZeroU64::new(TID_NEXT.fetch_add(1, Ordering::Relaxed));
+                    return;
+                },
+                Some(tid) => tid
+            };
+
+            //if parent_ret as usize == 8 {
+            //    return;
+            //}
 
             // Save call to global events ringbuffer
             if let Some(events) = &mut EVENTS {
@@ -197,29 +209,45 @@ pub extern "C" fn mcount_return_trampoline() {
     // based on https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
 
     unsafe{
+        /* save registers which could contain return values */
         asm!("
-            /* space for locals (saved ret values) */
-            sub $$48, %rsp
+            /* space for locals (saved ret values) (if we dont back up xmm0+1, this is too much, but this won't hurt us) */
+            sub $$64, %rsp
 
-            /* save registers which could contain return values (missing xmm1 for full wikipedia/systemv compliance?) */
-            movdqu %xmm0, 16(%rsp)
             movq   %rdx,   8(%rsp)
             movq   %rax,   0(%rsp)
+        ");
 
+        /* when we compile against a 'kernel' target we do NOT have sse enabled, otherwise we might. Backup xmm0 and xmm1 in that case */
+        #[cfg(target_feature = "sse2")]
+        asm!("
+            movdqu %xmm0, 16(%rsp)
+            movdqu %xmm1, 32(%rsp)
+        ");
+
+        asm!("
             /* set the first argument of mcount_return as pointer to return values */
             movq %rsp, %rdi
 
             /* call mcount_return, which returns original parent address. Store it at the correct stack location */
             call mcount_return
-            movq %rax, 40(%rsp)
+            movq %rax, 56(%rsp)
 
             /* restore saved return values */
             movq    0(%rsp), %rax
             movq    8(%rsp), %rdx
-            movdqu 16(%rsp), %xmm0
+        ");
 
-            /* add only 40 to rsp, so the missing 8 become the new return pointer */
-            add $$40, %rsp
+        /* Restore sse return values, if supported */ 
+        #[cfg(target_feature = "sse2")]
+        asm!("
+            movdqu 16(%rsp), %xmm0
+            movdqu 32(%rsp), %xmm1
+        ");
+
+        asm!("
+            /* add only 56 to rsp, so the missing 8 become the new return pointer */
+            add $$56, %rsp
             retq
         ");
     }
