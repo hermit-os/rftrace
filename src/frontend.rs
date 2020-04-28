@@ -184,31 +184,51 @@ fn dump_traces(events: Events, outpath: &str, singlefile: bool) -> io::Result<Ve
     disable();
     println!("Saving traces to disk...!");
 
-    
+
     let (events, cidx) = get_events(events);
     let cidx = cidx % events.len();
+
+    // The following is somewhat inefficient, but is intended to solve two constraints:
+    // - don't use too much memory. Here we have ~2x trace array.
+    // - don't have multiple files open at once
 
     // To avoid to many reallocs, use array with maximum size for all traces.
     let mut out = Vec::<u8>::with_capacity(16*events.len());
 
-    // Keep track of tids so we can assemble metadata
-    let mut tids: Vec<u64> = Vec::new();
+    // Gather all tids so we can assemble metadata
+    let mut tids: Vec<Option<core::num::NonZeroU64>> = Vec::new();
+    for e in events[cidx..].iter().chain(events[..cidx].iter()) {
+        match e {
+            Event::Exit(e) => {
+                if !tids.contains(&e.tid) {
+                    tids.push(e.tid);
+                }
+            },
+            Event::Entry(e) => {
+                if !tids.contains(&e.tid) {
+                    tids.push(e.tid);
+                }
+            }
+            Event::Empty => {}
+        }
+    }
 
-    let mut current_tid: Option<core::num::NonZeroU64> = None; // should never be None, but lets be sure.
-
-    loop {
-        // clear out vec incase it contains entries from previous tid
+    // For each TID, loop through the events array and save only the relevant items to disk
+    for current_tid in &tids {
+        // clear out vec in case it contains entries from previous tid
         out.clear();
+
+        let tid = current_tid.map_or(0, |tid| tid.get());
         
-        println!("  Parsing TID {:?}...!", current_tid);
+        println!("  Parsing TID {:?}...!", tid);
         for e in events[cidx..].iter().chain(events[..cidx].iter()) {
             match e {
                 Event::Exit(e) => {
-                    if !singlefile && current_tid != e.tid {continue};
+                    if !singlefile && current_tid != &e.tid {continue};
                     write_event(&mut out, e.time, e.from, 1);
                 },
                 Event::Entry(e) => {
-                    if !singlefile &&  current_tid != e.tid {continue};
+                    if !singlefile &&  current_tid != &e.tid {continue};
                     write_event(&mut out, e.time, e.to, 0);
                 }
                 Event::Empty => {
@@ -221,29 +241,19 @@ fn dump_traces(events: Events, outpath: &str, singlefile: bool) -> io::Result<Ve
             let filename = if singlefile {
                 outpath.into()
             } else {
-                let tid = current_tid.map_or(0, |tid| tid.get());
-                tids.push(tid);
                 let file = format!("{}.dat", tid);
                 format!("{}/{}", outpath, file)
             };
 
             println!("  Writing to disk: {} events ({})", out.len(), filename);
-
             let mut file = File::create(filename)?;
             file.write_all(&out[..])?;
-        } else if current_tid.is_some() {
-            // we expect no events for current_tid == None. But if we see none for a higher tid, we assume we have parsed all events.
-            println!("  Parsed all events!");
-            break;
         }
-
-        // Increase current_tid by 1 (or set to 1 if None)
-        current_tid = current_tid.map_or(
-            core::num::NonZeroU64::new(1),
-            |tid| core::num::NonZeroU64::new(tid.get() + 1)
-        );
     }
-    Ok(tids)
+    println!("  Parsed all events!");
+
+    // Remove the options from the tids, using 0 for None
+    Ok(tids.iter().map(|tid| tid.map_or(0, |tid| tid.get())).collect())
 }
 
 
