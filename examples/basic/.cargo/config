@@ -1,0 +1,2 @@
+[build]
+rustflags = ["-Z", "instrument_mcount"]
