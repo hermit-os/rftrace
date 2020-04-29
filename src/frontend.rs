@@ -55,12 +55,8 @@ pub fn init(max_event_count: usize, overwriting: bool) -> Events {
     }
 }
 
-extern "C" {
-    #[no_mangle]
-    static __executable_start: usize;
-}
 
-pub fn dump_full_uftrace(events: Events, out_dir: &str, binary_name: &str, aslr_correct: bool) -> io::Result<()> {
+pub fn dump_full_uftrace(events: Events, out_dir: &str, binary_name: &str, linux: bool) -> io::Result<()> {
     //! Dumps the traces with some faked metadata into out_dir. Can be directly parsed with uftrace.
     //! 
     //! Will NOT generate symbols! You can generate them with `nm -n $BINARY > binary_name.sym`
@@ -69,7 +65,7 @@ pub fn dump_full_uftrace(events: Events, out_dir: &str, binary_name: &str, aslr_
     //! 
     //! out_dir has to point to a folder, which has to exist.
     //! 
-    //! aslr_correct: Log __executable_start offset, so uftrace can resolve symbol if ASLR is enabled.
+    //! linux: it true, don't fake the memory map, copy it from /proc/self/maps.
     //! this breaks on RustyHermit, since __executable_start points to 0x200000, but symbols are not reloc'd
 
     // arbitrary values for pid and sid
@@ -78,7 +74,6 @@ pub fn dump_full_uftrace(events: Events, out_dir: &str, binary_name: &str, aslr_
 
     // First lets create all traces.
     let tids = dump_traces(events, out_dir, false)?;
-
 
     println!("Creating fake uftrace data dir at {}..", out_dir);
     println!("  Creating ./info");
@@ -143,18 +138,19 @@ pub fn dump_full_uftrace(events: Events, out_dir: &str, binary_name: &str, aslr_
     }
     drop(taskfile);
 
-
-    println!("  Creating ./sid-{}.map memory map file", sid);
-    let mapfile = format!("{}/sid-{}.map", out_dir, sid);
-    let mut mapfile = File::create(mapfile)?;
-    let exec_start = if aslr_correct {
-        unsafe{&__executable_start as *const usize as usize} // start at __executable_start, so uftrace can resolve symbols if ASLR is on
+    let mapfilename = format!("{}/sid-{}.map", out_dir, sid);
+    let mut mapfile = File::create(mapfilename)?;
+    if linux {
+        println!("  Creating ./sid-{}.map by copying /proc/self/maps", sid);
+        let mut procfile = File::open("/proc/self/maps")?;
+        io::copy(&mut procfile, &mut mapfile)?;
     } else {
-        0
-    };
-    write!(mapfile, "{:012x}-ffffffffffff r-xp 00000000 00:00 0                          {}\n", exec_start, binary_name)?;
-    write!(mapfile, "ffffffffffff-ffffffffffff rw-p 00000000 00:00 0                          [stack]\n")?;
-
+        println!("  Creating ./sid-{}.map fake memory map file", sid);
+    
+        write!(mapfile, "000000000000-ffffffffffff r-xp 00000000 00:00 0                          {}\n", binary_name)?;
+        write!(mapfile, "ffffffffffff-ffffffffffff rw-p 00000000 00:00 0                          [stack]\n")?;
+    }
+   
     println!("  You should generate symbols with `nm -n $BINARY > {}/{}.sym`", out_dir, binary_name);
 
     Ok(())
@@ -168,9 +164,11 @@ pub fn dump_trace(events: Events, outfile: &str) -> io::Result<()> {
 
 
 fn dump_traces(events: Events, outpath: &str, singlefile: bool) -> io::Result<Vec<u64>> {
-    // Uftraces trace format: a bunch of 64-bit fields.
-    // two 64bit for one event. See https://github.com/namhyung/uftrace/wiki/Data-Format
+    // Uftraces trace format: a bunch of 64-bit fields, See https://github.com/namhyung/uftrace/wiki/Data-Format
     // 
+    // Array of 2x64 bit unsigned long: `[{time: u64, address: u64}, ...]`
+    // Since addresses are (currently) only using the low 48 bits, metadata (mainly funciton entry/exit) is saved in the remaining 16 bits.
+
     /* struct uftrace_record {
         uint64_t time;
         uint64_t type:   2;
