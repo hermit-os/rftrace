@@ -2,6 +2,7 @@ pub const MAX_STACK_HEIGHT: usize = 1000;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub enum Event {
     Empty,
     Entry(Call),

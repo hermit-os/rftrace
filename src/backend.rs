@@ -1,4 +1,4 @@
-use core::sync::atomic::{AtomicUsize, AtomicU64, AtomicBool, Ordering};
+use core::sync::atomic::{AtomicUsize, AtomicU64, Ordering};
 use core::arch::x86_64::_rdtsc;
 use core::slice;
 
@@ -39,15 +39,11 @@ static mut TID: Option<core::num::NonZeroU64> = None;
 // Everytime we see a new thread (with emtpy thread-locals), we alloc out own TID
 static mut TID_NEXT: AtomicU64 = AtomicU64::new(1);
 
-// Alloc'd in frontend and passed to us.
-static mut UNUSED_RETSTACK_BUF: Option<&mut [RetStack]> = None;
-static mut UNUSED_RETSTACK_BUF_MUTEX: AtomicBool = AtomicBool::new(false);
-
 // Need to define own panic handler, since we are no_std
 use core::panic::PanicInfo;
 #[linkage = "weak"]
 #[panic_handler]
-fn panic(info: &PanicInfo) -> ! {loop{}}
+fn panic(_info: &PanicInfo) -> ! {loop{}}
 
 
 impl RetStack {
@@ -83,7 +79,7 @@ pub extern "C" fn mcount() {
     // We need to be careful with hooked naked functions!
     // Normally, llvm ensures that all needed functions parameters are saved before the embedded mcount() is called, and restored afterwards.
     // This does NOT happen with naked funktions like `hermit::arch::x86_64::kernel::switch::switch:`
-    // There, the args (like old and new_stack) are clobbered. This is because they are not used, only implicitly in the asm! code, so llvm does not know they are used!
+    // There, the args (like old and new_stack) are clobbered. This is because they are not used, only implicitly in the llvm_asm! code, so llvm does not know they are used!
     // To be sure the instrumentation never breaks anything, we backup and restore any possible argument registers
     // TODO: Implement feature to skip this, which can be enabled if we are sure this can't happen with the code we are instrumenting?
 
@@ -96,7 +92,7 @@ pub extern "C" fn mcount() {
         if !ENABLED {
             return;
         } 
-        asm!("
+        llvm_asm!("
         /* make some space for locals on the stack */
         sub $$48, %rsp
 
@@ -159,7 +155,7 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
             // This means parent_ret (which is lea 8(%rbp)), will be 8 and we will crash on access.
             // Other OS's likely do something similar. So we never do anything if we do not have our own TID yet,
             // Which always happens on the first call. From the second onwards we log calls.
-            let tid = match TID {
+            match TID {
                 None => {
                     // We are not yet initialized, do it now
                     // Would only fail if we overflow TID_NEXT, which is 64bit, then TID stays None (?)
@@ -195,7 +191,7 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
             // Do not overwrite ret-ptr if returnstack is full 
             // this will lead to truncation of the return events once a too big stack has been reached!
             // TODO: warn the user about this?
-            if unsafe{RETSTACK.push(sr).is_ok()} {
+            if RETSTACK.push(sr).is_ok() {
                 *parent_ret = mcount_return_trampoline as *const usize;
             }
         }
@@ -210,7 +206,7 @@ pub extern "C" fn mcount_return_trampoline() {
 
     unsafe{
         /* save registers which could contain return values */
-        asm!("
+        llvm_asm!("
             /* space for locals (saved ret values) (if we dont back up xmm0+1, this is too much, but this won't hurt us) */
             sub $$64, %rsp
 
@@ -220,12 +216,12 @@ pub extern "C" fn mcount_return_trampoline() {
 
         /* when we compile against a 'kernel' target we do NOT have sse enabled, otherwise we might. Backup xmm0 and xmm1 in that case */
         #[cfg(target_feature = "sse2")]
-        asm!("
+        llvm_asm!("
             movdqu %xmm0, 16(%rsp)
             movdqu %xmm1, 32(%rsp)
         ");
 
-        asm!("
+        llvm_asm!("
             /* set the first argument of mcount_return as pointer to return values */
             movq %rsp, %rdi
 
@@ -240,12 +236,12 @@ pub extern "C" fn mcount_return_trampoline() {
 
         /* Restore sse return values, if supported */ 
         #[cfg(target_feature = "sse2")]
-        asm!("
+        llvm_asm!("
             movdqu 16(%rsp), %xmm0
             movdqu 32(%rsp), %xmm1
         ");
 
-        asm!("
+        llvm_asm!("
             /* add only 56 to rsp, so the missing 8 become the new return pointer */
             add $$56, %rsp
             retq
@@ -258,7 +254,7 @@ pub extern "C" fn mcount_return_trampoline() {
 pub extern "C" fn mcount_return() -> *const usize {
     unsafe {
         let (original_ret, childip) = {
-            let sr = unsafe{RETSTACK.pop().expect("retstack empty?")};
+            let sr = RETSTACK.pop().expect("retstack empty?");
 
             (sr.retloc, sr.childip)
         };

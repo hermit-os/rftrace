@@ -1,5 +1,5 @@
 #![feature(naked_functions)]
-#![feature(asm)]
+#![feature(llvm_asm)]
 #![feature(thread_local)]
 #![feature(linkage)]
 
