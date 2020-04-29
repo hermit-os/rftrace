@@ -6,7 +6,7 @@ pub const MAX_STACK_HEIGHT: usize = 1000;
 pub enum Event {
     Empty,
     Entry(Call),
-    Exit(Exit)
+    Exit(Exit),
 }
 
 #[repr(C)]

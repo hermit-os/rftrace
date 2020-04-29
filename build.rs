@@ -1,10 +1,9 @@
-#[cfg(feature="backend")]
+#[cfg(feature = "backend")]
 use std::env;
-#[cfg(feature="backend")]
+#[cfg(feature = "backend")]
 use std::process::{Command, Stdio};
 
-
-#[cfg(feature="backend")]
+#[cfg(feature = "backend")]
 fn build_backend() {
     println!("Building Backend!");
     // Get envvars from cargo
@@ -14,14 +13,12 @@ fn build_backend() {
 
     // Set the target. file if shortcut-feature hermit is chosen.
     // Else, allow overriding target via env-var
-    #[cfg(feature="hermit")]
+    #[cfg(feature = "hermit")]
     let target = "x86_64-unknown-hermit-kernel";
-    #[cfg(not(feature="hermit"))]
+    #[cfg(not(feature = "hermit"))]
     let target = {
-        println!("cargo:rerun-if-env-changed=TARGET_TARGET_TRIPLE");
-        env::var("TARGET_TARGET_TRIPLE").unwrap_or_else(|_| {
-            env::var("TARGET").unwrap()
-        })
+        println!("cargo:rerun-if-env-changed=RFTRACE_TARGET_TRIPLE");
+        env::var("RFTRACE_TARGET_TRIPLE").unwrap_or_else(|_| env::var("TARGET").unwrap())
     };
 
     let mut cmd = Command::new("cargo");
@@ -53,28 +50,36 @@ fn build_backend() {
 
     // Build core, needed when compiling against a kernel-target, such as x86_64-unknown-hermit-kernel.
     // parent's cargo does NOT expose -Z flags as envvar, we therefore use a feature flag for this
-    #[cfg(feature="buildstd")]
+    #[cfg(feature = "buildstd")]
     cmd.args(&["-Z", "build-std=core"]); // should be build std,alloc?
 
     // Compile staticlib as release if included in release build.
     if profile == "release" {
         cmd.arg("--release");
     }
-    
+
     // Ensure rustflags does NOT contain instrument-mcount!
-    cmd.env("RUSTFLAGS", env::var("RUSTFLAGS").unwrap_or("".into()).replace("-Z instrument-mcount", ""));
+    cmd.env(
+        "RUSTFLAGS",
+        env::var("RUSTFLAGS")
+            .unwrap_or("".into())
+            .replace("-Z instrument-mcount", ""),
+    );
 
     // Execute and get status.
     println!("Starting sub-cargo");
     let status = cmd.status().expect("Unable to build tracer's static lib!");
-    
+
     // Panic on fail, so the build aborts and the error messages are printed
     assert!(status.success(), "Unable to build tracer's static lib!");
     println!("Sub-cargo successful!");
 
     // Link parent-lib against this staticlib
-    println!("cargo:rustc-link-search=native={}/{}/{}/", &full_target_dir, &target, &profile);
-    println!("cargo:rustc-link-lib=static=tracer_rs_static");
+    println!(
+        "cargo:rustc-link-search=native={}/{}/{}/",
+        &full_target_dir, &target, &profile
+    );
+    println!("cargo:rustc-link-lib=static=rftrace_backend");
 
     println!("cargo:rerun-if-changed=staticlib/Cargo.toml");
     println!("cargo:rerun-if-changed=src/backend.rs");
@@ -83,6 +88,6 @@ fn build_backend() {
 }
 
 fn main() {
-    #[cfg(feature="backend")]
+    #[cfg(feature = "backend")]
     build_backend();
 }
