@@ -25,8 +25,8 @@ fn build_backend() {
     };
 
     let mut cmd = Command::new("cargo");
-    // we need nightly, since we use named-profiles. Crash when we dont have it as default.
-    //cmd.arg("+nightly");
+    // We use nightly features, so always enable it
+    cmd.arg("+nightly");
     cmd.arg("build");
 
     // Compile for the same target as the parent-lib
