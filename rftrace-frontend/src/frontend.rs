@@ -99,9 +99,10 @@ pub fn dump_full_uftrace(
     // elf_ident[EI_CLASS]. always 2 for 64bit
     info.push(2);
     // feature flags
-    println!("    feats = TASK_SESSION");
+    println!("    feats = TASK_SESSION | SYM_REL_ADDR");
     const TASK_SESSION: u64 = 1 << 1; // needed.
-    info.write_u64::<LittleEndian>(TASK_SESSION)
+    const SYM_REL_ADDR: u64 = 1 << 5; // enable symbol relocation (important for ASLR on linux)
+    info.write_u64::<LittleEndian>(TASK_SESSION | SYM_REL_ADDR)
         .expect("Write interrupted");
     // info flags
     println!("    info = CMDLINE | TASKINFO");
@@ -158,7 +159,9 @@ pub fn dump_full_uftrace(
     let mapfilename = format!("{}/sid-{}.map", out_dir, sid);
     let mut mapfile = File::create(mapfilename)?;
     if linux {
-        println!("  Creating ./sid-{}.map by copying /proc/self/maps", sid);
+        // see uftrace's record_proc_maps(..)
+        // TODO: implement section-merging
+        println!("  Creating (incorrect) ./sid-{}.map by copying /proc/self/maps", sid);
         let mut procfile = File::open("/proc/self/maps")?;
         io::copy(&mut procfile, &mut mapfile)?;
     } else {
@@ -175,10 +178,18 @@ pub fn dump_full_uftrace(
         )?;
     }
 
-    println!(
-        "  You should generate symbols with `nm -n $BINARY > {}/{}.sym`",
-        out_dir, binary_name
-    );
+
+    if linux {        
+        println!("\nYou should generate symbols with `nm -n $BINARY > {}/$BINARY.sym`", out_dir);
+        println!("INFO: Linux mode is NOT fully supported yet! To get symbols working, you have to");
+        println!("      edit the sid-00.map and merge the section for each binary, so that it only occurs once.");
+        println!("      Needs to contain at least [stack] and the binaries you want symbols of.");
+    } else {
+        println!(
+            "\nYou should generate symbols with `nm -n $BINARY > {}/{}.sym`",
+            out_dir, binary_name
+        );
+    }
 
     Ok(())
 }

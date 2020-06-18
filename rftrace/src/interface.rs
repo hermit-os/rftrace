@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub const MAX_STACK_HEIGHT: usize = 1000;
 
 #[repr(C)]

@@ -1,9 +1,6 @@
-#[cfg(feature = "backend")]
 use std::env;
-#[cfg(feature = "backend")]
 use std::process::{Command, Stdio};
 
-#[cfg(feature = "backend")]
 fn build_backend() {
     println!("Building Backend!");
     // Get envvars from cargo
@@ -50,7 +47,7 @@ fn build_backend() {
 
     // Build core, needed when compiling against a kernel-target, such as x86_64-unknown-hermit-kernel.
     // parent's cargo does NOT expose -Z flags as envvar, we therefore use a feature flag for this
-    #[cfg(feature = "buildstd")]
+    #[cfg(feature = "buildcore")]
     cmd.args(&["-Z", "build-std=core"]); // should be build std,alloc?
 
     // Compile staticlib as release if included in release build.
@@ -88,6 +85,5 @@ fn build_backend() {
 }
 
 fn main() {
-    #[cfg(feature = "backend")]
     build_backend();
 }

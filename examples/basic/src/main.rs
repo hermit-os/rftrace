@@ -1,4 +1,5 @@
-use rftrace;
+extern crate rftrace as _;
+use rftrace_frontend as rftrace;
 
 fn main() {
     let events = rftrace::init(2000, false);
