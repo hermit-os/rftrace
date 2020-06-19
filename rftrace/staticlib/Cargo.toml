@@ -9,6 +9,7 @@ edition = "2018"
 
 [features]
 staticlib = []
+interruptsafe = [] # backup and restore all scratch registers in the mcount_return trampoline. Needed if we instrument interrupt routines
 
 [lib]
 crate-type = ['staticlib']

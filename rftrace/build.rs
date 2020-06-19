@@ -33,6 +33,10 @@ fn build_backend() {
     cmd.args(&["--manifest-path", "staticlib/Cargo.toml"]);
 
     // Enable the staticlib feature, so we can do #[cfg(feature='staticlib')] gate our code
+    // Pass-through interruptsafe feature
+    #[cfg(feature = "interruptsafe")]
+    cmd.args(&["--features", "staticlib,interruptsafe"]);
+    #[cfg(not(feature = "interruptsafe"))]
     cmd.args(&["--features", "staticlib"]);
 
     // Always output color, so eventhough we are cargo-in-cargo, we get nice error messages on build fail

@@ -205,17 +205,49 @@ pub extern "C" fn mcount_return_trampoline() {
     // does 'nothing', except calling mcount_return. Takes care to not clobber any return registers.
     // based on https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
 
-    unsafe {
-        /* save registers which could contain return values */
-        llvm_asm!("
-            /* space for locals (saved ret values) (if we dont back up xmm0+1, this is too much, but this won't hurt us) */
-            sub $$64, %rsp
+    // System V AMD64 ABI: If the callee wishes to use registers RBX, RBP, and R12–R15, it must restore their original values before returning control to the caller.
+    //                     All other registers must be saved by the caller if it wishes to preserve their values.
+    // We are in a return trampoline -> we only have to save the registers the return value might be stored in.
+    // `call mcount_return` is not allowed to clobber rbx, rbp, ... either, so thats fine.
+    // The only issue are interrupts. If we are tracing kernel code, specifically interrupt handlers, we will break stuff since we might change the scratch registers in the middle of a function.
+    // To solve this, a compile-time 'interruptsafe' feature is defined, which when set, saves and restores all volatile registers.
 
+    /*
+    Stack layout:
+        RBP +112
+            +104    RETURN-ADDRESS
+            +96     r11      |
+            +88     r10      |
+            +80     r9       |
+            +72     r8       |  only when interruptsafe
+            +64     rcx      |
+            +56     rsi      |
+            +48     rdi      |
+            +40     xmm1   |
+            +32     xmm1   | only when sse2 is available
+            +24     xmm0   |
+            +16     xmm0   |
+            +8      rdx
+        RSP +0      rax
+    */
+
+    unsafe {
+        /* space for locals (saved ret values) (if we dont back up xmm0+1, this is too much, but this won't hurt us) */
+        #[cfg(feature = "interruptsafe")]
+        llvm_asm!("sub $$112, %rsp");
+        #[cfg(not(feature = "interruptsafe"))]
+        llvm_asm!("sub $$64, %rsp");
+
+        /* always backup return registers */
+        llvm_asm!(
+            "
             movq   %rdx,   8(%rsp)
             movq   %rax,   0(%rsp)
-        ");
+        "
+        );
 
-        /* when we compile against a 'kernel' target we do NOT have sse enabled, otherwise we might. Backup xmm0 and xmm1 in that case */
+        /* when we compile against a 'kernel' target we do NOT have sse enabled, otherwise we might. Backup xmm0 and xmm1 */
+        /* even if we are in userspace code that could use sse2, we are guaranteed that mcount_return() will not clobber it in this case */
         #[cfg(target_feature = "sse2")]
         llvm_asm!(
             "
@@ -224,18 +256,65 @@ pub extern "C" fn mcount_return_trampoline() {
         "
         );
 
-        llvm_asm!("
+        // If we have to be interrupt safe, also backup non-return scratch registers
+        #[cfg(feature = "interruptsafe")]
+        llvm_asm!(
+            "
+            movq   %rdi,   48(%rsp)
+            movq   %rsi,   56(%rsp)
+            movq   %rcx,   64(%rsp)
+            movq   %r8,    72(%rsp)
+            movq   %r9,    80(%rsp)
+            movq   %r10,   88(%rsp)
+            movq   %r11,   96(%rsp)
+        "
+        );
+
+        llvm_asm!(
+            "
             /* set the first argument of mcount_return as pointer to return values */
             movq %rsp, %rdi
 
-            /* call mcount_return, which returns original parent address. Store it at the correct stack location */
+            /* call mcount_return, which returns original parent address in rax. */
             call mcount_return
-            movq %rax, 56(%rsp)
+        "
+        );
 
-            /* restore saved return values */
+        // Store original parent address at the correct stack location
+        #[cfg(not(feature = "interruptsafe"))]
+        llvm_asm!(
+            "
+            movq %rax, 56(%rsp)
+        "
+        );
+        #[cfg(feature = "interruptsafe")]
+        llvm_asm!(
+            "
+            movq %rax, 104(%rsp)
+        "
+        );
+
+        // restore saved return values
+        llvm_asm!(
+            "
             movq    0(%rsp), %rax
             movq    8(%rsp), %rdx
-        ");
+        "
+        );
+
+        // If we have to be interrupt safe, restore non-return scratch registers
+        #[cfg(feature = "interruptsafe")]
+        llvm_asm!(
+            "
+            movq   48(%rsp),   %rdi
+            movq   56(%rsp),   %rsi
+            movq   64(%rsp),   %rcx
+            movq   72(%rsp),   %r8
+            movq   80(%rsp),   %r9
+            movq   88(%rsp),   %r10
+            movq   96(%rsp),   %r11
+        "
+        );
 
         /* Restore sse return values, if supported */
         #[cfg(target_feature = "sse2")]
@@ -246,11 +325,18 @@ pub extern "C" fn mcount_return_trampoline() {
         "
         );
 
+        /* add 8 less back to rsp than we substracted. RET will pop the 'missing' value */
+        #[cfg(not(feature = "interruptsafe"))]
         llvm_asm!(
             "
-            /* add only 56 to rsp, so the missing 8 become the new return pointer */
             add $$56, %rsp
-            retq
+        "
+        );
+
+        #[cfg(feature = "interruptsafe")]
+        llvm_asm!(
+            "
+            add $$104, %rsp
         "
         );
     }
