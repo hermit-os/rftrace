@@ -3,19 +3,11 @@ name = "rftrace-frontend-ffi"
 version = "0.1.0"
 authors = ["Thomas Lambertz <mail@thomaslambertz.de>"]
 edition = "2018"
-build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-#name = ""
 crate-type = ["cdylib"]
-
-[features]
-default = ["cbindgen"]
 
 [dependencies]
 rftrace-frontend = {path="../rftrace-frontend"}
-
-[build-dependencies]
-cbindgen = { version = "^0.13", optional = true }

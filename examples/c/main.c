@@ -1,6 +1,5 @@
 #include<stdio.h>
-// you can determine header path with `fd -uu .h$ ../../`
-#include "../../target/debug/build/rftrace-frontend-ffi-16a32c2014c619e6/out/rftrace_frontend_ffi.h"
+#include "../../rftrace-frontend-ffi/rftrace_frontend_ffi.h"
 
 
 
