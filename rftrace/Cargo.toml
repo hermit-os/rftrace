@@ -14,7 +14,7 @@ interruptsafe = [] # backup and restore all scratch registers in the mcount_retu
 default = ['interruptsafe']
 
 [lib]
-crate-type = ['rlib']
+crate-type = ['cdylib', 'rlib']
 
 #[profile.dev]
 #panic = "abort"

@@ -75,7 +75,7 @@ impl RetStack {
 
 #[naked]
 #[no_mangle]
-pub extern "C" fn mcount() {
+pub extern "C" fn mcount_internal() {
     // We need to be careful with hooked naked functions!
     // Normally, llvm ensures that all needed functions parameters are saved before the embedded mcount() is called, and restored afterwards.
     // This does NOT happen with naked funktions like `hermit::arch::x86_64::kernel::switch::switch:`
@@ -388,7 +388,7 @@ fn set_eventbuf(eventbuf: &'static mut [Event]) {
     }
 }
 
-// Public interface
+// interface, only used by 'parent' rftrace lib this static backend is linked to!
 
 #[no_mangle]
 pub extern "C" fn trs_get_events_index() -> usize {

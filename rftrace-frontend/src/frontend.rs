@@ -4,19 +4,19 @@ use std::fs::File;
 use std::io::{self, prelude::*};
 
 extern "C" {
-    pub fn trs_enable();
-    pub fn trs_disable();
-    pub fn trs_init(bufptr: *mut Event, len: usize, overwriting: bool);
-    pub fn trs_get_events() -> *const Event;
-    pub fn trs_get_events_index() -> usize;
+    pub fn rftrace_backend_enable();
+    pub fn rftrace_backend_disable();
+    pub fn rftrace_backend_init(bufptr: *mut Event, len: usize, overwriting: bool);
+    pub fn rftrace_backend_get_events() -> *const Event;
+    pub fn rftrace_backend_get_events_index() -> usize;
 }
 
 pub fn enable() {
-    unsafe { trs_enable() }
+    unsafe { rftrace_backend_enable() }
 }
 
 pub fn disable() {
-    unsafe { trs_disable() }
+    unsafe { rftrace_backend_disable() }
 }
 
 /// Used to keep track of event buffer given to the staticlib
@@ -27,15 +27,15 @@ pub struct Events {
     cap: usize,
 }
 
-fn get_events(events: Events) -> (Vec<Event>, usize) {
+fn get_events(events: &mut Events) -> (Vec<Event>, usize) {
     // Tell backend to not use the current buffer anymore.
-    let ptr = unsafe { trs_get_events() };
+    let ptr = unsafe { rftrace_backend_get_events() };
     println!("{:?}, {:?}", ptr, events);
     assert!(ptr == events.ptr, "Event buffer pointer mismatch!");
 
     let eventvec = unsafe { Vec::from_raw_parts(events.ptr, events.len, events.cap) };
 
-    let idx = unsafe { trs_get_events_index() };
+    let idx = unsafe { rftrace_backend_get_events_index() };
     (eventvec, idx)
 }
 
@@ -43,7 +43,7 @@ fn get_events(events: Events) -> (Vec<Event>, usize) {
 /// if 'overwriting', treats it as a ring-buffer, keeping only the most-recent entries.
 /// otherwise, stopps logging once it is full.
 /// max_event_count has to be at least 1000.
-pub fn init(max_event_count: usize, overwriting: bool) -> Events {
+pub fn init(max_event_count: usize, overwriting: bool) -> &'static mut Events {
     assert!(
         max_event_count > MAX_STACK_HEIGHT,
         "Event buffer has to be larger than maximum stack height!"
@@ -52,13 +52,14 @@ pub fn init(max_event_count: usize, overwriting: bool) -> Events {
     unsafe {
         // intentionally leak here! stacks have to live until end of application.
         let (ptr, len, cap) = buf.into_raw_parts();
-        trs_init(ptr, cap, overwriting);
-        return Events { ptr, len, cap };
+        rftrace_backend_init(ptr, cap, overwriting);
+        // TODO: free this leaked box somewhere. Create a drop() function or similar?
+        return Box::leak(Box::new(Events { ptr, len, cap }));
     }
 }
 
 pub fn dump_full_uftrace(
-    events: Events,
+    events: &mut Events,
     out_dir: &str,
     binary_name: &str,
     linux: bool,
@@ -80,6 +81,11 @@ pub fn dump_full_uftrace(
 
     // First lets create all traces.
     let tids = dump_traces(events, out_dir, false)?;
+
+    if tids.len() == 0 {
+        println!("Trace is empty!");
+        return Ok(());
+    }
 
     println!("Creating fake uftrace data dir at {}..", out_dir);
     println!("  Creating ./info");
@@ -161,7 +167,10 @@ pub fn dump_full_uftrace(
     if linux {
         // see uftrace's record_proc_maps(..)
         // TODO: implement section-merging
-        println!("  Creating (incorrect) ./sid-{}.map by copying /proc/self/maps", sid);
+        println!(
+            "  Creating (incorrect) ./sid-{}.map by copying /proc/self/maps",
+            sid
+        );
         let mut procfile = File::open("/proc/self/maps")?;
         io::copy(&mut procfile, &mut mapfile)?;
     } else {
@@ -178,10 +187,14 @@ pub fn dump_full_uftrace(
         )?;
     }
 
-
-    if linux {        
-        println!("\nYou should generate symbols with `nm -n $BINARY > {}/$BINARY.sym`", out_dir);
-        println!("INFO: Linux mode is NOT fully supported yet! To get symbols working, you have to");
+    if linux {
+        println!(
+            "\nYou should generate symbols with `nm -n $BINARY > {}/$BINARY.sym`",
+            out_dir
+        );
+        println!(
+            "INFO: Linux mode is NOT fully supported yet! To get symbols working, you have to"
+        );
         println!("      edit the sid-00.map and merge the section for each binary, so that it only occurs once.");
         println!("      Needs to contain at least [stack] and the binaries you want symbols of.");
     } else {
@@ -194,12 +207,12 @@ pub fn dump_full_uftrace(
     Ok(())
 }
 
-pub fn dump_trace(events: Events, outfile: &str) -> io::Result<()> {
+pub fn dump_trace(events: &mut Events, outfile: &str) -> io::Result<()> {
     dump_traces(events, outfile, true)?;
     Ok(())
 }
 
-fn dump_traces(events: Events, outpath: &str, singlefile: bool) -> io::Result<Vec<u64>> {
+fn dump_traces(events: &mut Events, outpath: &str, singlefile: bool) -> io::Result<Vec<u64>> {
     // Uftraces trace format: a bunch of 64-bit fields, See https://github.com/namhyung/uftrace/wiki/Data-Format
     //
     // Array of 2x64 bit unsigned long: `[{time: u64, address: u64}, ...]`
@@ -282,7 +295,12 @@ fn dump_traces(events: Events, outpath: &str, singlefile: bool) -> io::Result<Ve
                 format!("{}/{}", outpath, file)
             };
 
-            println!("  Writing to disk: {} events ({})", out.len(), filename);
+            println!(
+                "  Writing to disk: {} events, {} bytes ({})",
+                out.len() / 16,
+                out.len(),
+                filename
+            );
             let mut file = File::create(filename)?;
             file.write_all(&out[..])?;
         }
