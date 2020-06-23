@@ -17,11 +17,11 @@ mod backend;
 // Issue: https://github.com/rust-lang/rfcs/issues/2771
 // Annoyingly, using rlib these functions get 'silently' exported, so the issue only occurs when we link C code
 
-#[cfg(not(feature = "staticlib"))]
+#[cfg(all(feature = "reexportsymbols", not(feature = "staticlib")))]
 use crate::interface::*;
 
 // Functions exported by staticlib backend
-#[cfg(not(feature = "staticlib"))]
+#[cfg(all(feature = "reexportsymbols", not(feature = "staticlib")))]
 extern "C" {
     pub fn trs_enable();
     pub fn trs_disable();
@@ -31,38 +31,38 @@ extern "C" {
 }
 
 #[no_mangle]
-#[cfg(not(feature = "staticlib"))]
+#[cfg(all(feature = "reexportsymbols", not(feature = "staticlib")))]
 pub unsafe extern "C" fn rftrace_backend_get_events_index() -> usize {
     trs_get_events_index()
 }
 
 #[no_mangle]
-#[cfg(not(feature = "staticlib"))]
+#[cfg(all(feature = "reexportsymbols", not(feature = "staticlib")))]
 pub unsafe extern "C" fn rftrace_backend_get_events() -> *const Event {
     trs_get_events()
 }
 
 #[no_mangle]
-#[cfg(not(feature = "staticlib"))]
+#[cfg(all(feature = "reexportsymbols", not(feature = "staticlib")))]
 pub unsafe extern "C" fn rftrace_backend_disable() {
     trs_disable();
 }
 
 #[no_mangle]
-#[cfg(not(feature = "staticlib"))]
+#[cfg(all(feature = "reexportsymbols", not(feature = "staticlib")))]
 pub unsafe extern "C" fn rftrace_backend_enable() {
     trs_enable();
 }
 
 #[no_mangle]
-#[cfg(not(feature = "staticlib"))]
+#[cfg(all(feature = "reexportsymbols", not(feature = "staticlib")))]
 pub unsafe extern "C" fn rftrace_backend_init(bufptr: *mut Event, len: usize, overwriting: bool) {
     trs_init(bufptr, len, overwriting)
 }
 
 #[naked]
 #[no_mangle]
-#[cfg(not(feature = "staticlib"))]
+#[cfg(all(feature = "reexportsymbols", not(feature = "staticlib")))]
 pub unsafe extern "C" fn mcount() {
     llvm_asm!(
         "

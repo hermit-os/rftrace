@@ -41,11 +41,13 @@ fn build_backend() {
     cmd.args(&["--manifest-path", "staticlib/Cargo.toml"]);
 
     // Enable the staticlib feature, so we can do #[cfg(feature='staticlib')] gate our code
-    // Pass-through interruptsafe feature
+    // Pass-through interruptsafe and reexportsymbols features
+    let mut features = "staticlib".to_owned();
     #[cfg(feature = "interruptsafe")]
-    cmd.args(&["--features", "staticlib,interruptsafe"]);
-    #[cfg(not(feature = "interruptsafe"))]
-    cmd.args(&["--features", "staticlib"]);
+    features.push_str(",interruptsafe");
+    #[cfg(feature = "reexportsymbols")]
+    features.push_str(",reexportsymbols");
+    cmd.args(&["--features", &*features]);
 
     // Always output color, so eventhough we are cargo-in-cargo, we get nice error messages on build fail
     cmd.args(&["--color", "always"]);

@@ -433,3 +433,45 @@ pub extern "C" fn trs_init(bufptr: *mut Event, len: usize, overwriting: bool) {
 
     set_eventbuf(eventbuf);
 }
+
+// In case we do NOT have to reexport (ie linking against rust via rlib), define the functions here, so they are not affected by instrument_mcount()
+#[no_mangle]
+#[cfg(not(feature = "reexportsymbols"))]
+pub unsafe extern "C" fn rftrace_backend_get_events_index() -> usize {
+    trs_get_events_index()
+}
+
+#[no_mangle]
+#[cfg(not(feature = "reexportsymbols"))]
+pub unsafe extern "C" fn rftrace_backend_get_events() -> *const Event {
+    trs_get_events()
+}
+
+#[no_mangle]
+#[cfg(not(feature = "reexportsymbols"))]
+pub unsafe extern "C" fn rftrace_backend_disable() {
+    trs_disable();
+}
+
+#[no_mangle]
+#[cfg(not(feature = "reexportsymbols"))]
+pub unsafe extern "C" fn rftrace_backend_enable() {
+    trs_enable();
+}
+
+#[no_mangle]
+#[cfg(not(feature = "reexportsymbols"))]
+pub unsafe extern "C" fn rftrace_backend_init(bufptr: *mut Event, len: usize, overwriting: bool) {
+    trs_init(bufptr, len, overwriting)
+}
+
+#[naked]
+#[no_mangle]
+#[cfg(not(feature = "reexportsymbols"))]
+pub unsafe extern "C" fn mcount() {
+    llvm_asm!(
+        "
+    jmp mcount_internal;
+    "
+    );
+}

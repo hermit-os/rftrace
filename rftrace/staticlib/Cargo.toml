@@ -10,6 +10,7 @@ edition = "2018"
 [features]
 staticlib = []
 interruptsafe = [] # backup and restore all scratch registers in the mcount_return trampoline. Needed if we instrument interrupt routines
+reexportsymbols = [] # workaround for rust bug https://github.com/rust-lang/rfcs/issues/2771, needed when linking against c code. DO NOT SET insturment_mcount when enabling this!
 
 [lib]
 crate-type = ['staticlib']
