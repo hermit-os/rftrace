@@ -8,15 +8,23 @@ fn build_backend() {
     let full_target_dir = format!("{}/target_static", out_dir);
     let profile = env::var("PROFILE").expect("PROFILE was not set");
 
-    // Set the target. file if shortcut-feature hermit is chosen.
-    // Else, allow overriding target via env-var
-    #[cfg(feature = "hermit")]
-    let target = "x86_64-unknown-hermit-kernel";
-    #[cfg(not(feature = "hermit"))]
+    // Set the target. Can be overwritten via env-var.
+    // If feature autokernel is enabled, automatically 'convert' hermit to hermit-kernel target. 
     let target = {
         println!("cargo:rerun-if-env-changed=RFTRACE_TARGET_TRIPLE");
-        env::var("RFTRACE_TARGET_TRIPLE").unwrap_or_else(|_| env::var("TARGET").unwrap())
+        env::var("RFTRACE_TARGET_TRIPLE").unwrap_or_else(|_| {
+            let default = env::var("TARGET").unwrap();
+            #[cfg(not(feature = "autokernel"))]
+            return default;
+            #[cfg(feature = "autokernel")]
+            if default == "x86_64-unknown-hermit" {
+                return "x86_64-unknown-hermit-kernel".to_owned();
+            } else {
+                return default;
+            }
+        })
     };
+    println!("Compiling for target {}", target);
 
     let mut cmd = Command::new("cargo");
     // We use nightly features, so always enable it

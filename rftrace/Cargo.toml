@@ -8,7 +8,7 @@ build = "build.rs"
 
 [features]
 buildcore = [] # Build core, needed when compiling against a kernel-target, such as x86_64-unknown-hermit-kernel.
-hermit = [] # convenience flag, which specifies compilation target as `x86_64-unknown-hermit-kernel`
+autokernel = [] # convenience flag, which specifies compilation target as `x86_64-unknown-hermit-kernel` when orignal target is `x86_64-unknown-hermit`
 interruptsafe = [] # backup and restore all scratch registers in the mcount_return trampoline. Needed if we instrument interrupt routines
 
 default = ['interruptsafe']
