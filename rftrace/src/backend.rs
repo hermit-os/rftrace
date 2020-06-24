@@ -75,7 +75,7 @@ impl RetStack {
 
 #[naked]
 #[no_mangle]
-pub extern "C" fn mcount_internal() {
+pub extern "C" fn mcount() {
     // We need to be careful with hooked naked functions!
     // Normally, llvm ensures that all needed functions parameters are saved before the embedded mcount() is called, and restored afterwards.
     // This does NOT happen with naked funktions like `hermit::arch::x86_64::kernel::switch::switch:`
@@ -150,23 +150,25 @@ pub extern "C" fn mcount_internal() {
 pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const usize) {
     unsafe {
         if ENABLED {
-            // HermitCore's task creation will set rbp to 0 in the first function for the task: task_entry()
-            // This means parent_ret (which is lea 8(%rbp)), will be 8 and we will crash on access.
-            // Other OS's likely do something similar. So we never do anything if we do not have our own TID yet,
-            // Which always happens on the first call. From the second onwards we log calls.
-            match TID {
+
+            let tid = match TID {
                 None => {
                     // We are not yet initialized, do it now
                     // Would only fail if we overflow TID_NEXT, which is 64bit, then TID stays None (?)
                     TID = core::num::NonZeroU64::new(TID_NEXT.fetch_add(1, Ordering::Relaxed));
-                    return;
+                    TID
                 }
-                Some(tid) => tid,
+                Some(tid) => Some(tid),
             };
 
-            //if parent_ret as usize == 8 {
-            //    return;
-            //}
+            // HermitCore's task creation will set rbp to 0 in the first function for the task: task_entry()
+            // This means parent_ret (which is lea 8(%rbp)), will be 8 and we will crash on access.
+            // Other OS's likely do something similar. Don't deref in that case!
+            let (hook_return, parent_ret_deref) = if parent_ret as usize <= 0x100 {
+                (false, 0xD3ADB33F as *const usize)
+            } else {
+                (true, *parent_ret)
+            };
 
             // Save call to global events ringbuffer
             if let Some(events) = &mut EVENTS {
@@ -180,21 +182,23 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
                 events[cidx % events.len()] = Event::Entry(Call {
                     time: _rdtsc(),
                     to: child_ret,
-                    from: *parent_ret,
-                    tid: TID.as_ref().copied(),
+                    from: parent_ret_deref,
+                    tid,
                 });
             }
 
-            let sr = SavedRet {
-                stackloc: parent_ret,
-                retloc: *parent_ret,
-                childip: child_ret,
-            };
-            // Do not overwrite ret-ptr if returnstack is full
-            // this will lead to truncation of the return events once a too big stack has been reached!
-            // TODO: warn the user about this?
-            if RETSTACK.push(sr).is_ok() {
-                *parent_ret = mcount_return_trampoline as *const usize;
+            if hook_return {
+                let sr = SavedRet {
+                    stackloc: parent_ret,
+                    retloc: parent_ret_deref,
+                    childip: child_ret,
+                };
+                // Do not overwrite ret-ptr if returnstack is full
+                // this will lead to truncation of the return events once a too big stack has been reached!
+                // TODO: warn the user about this?
+                if RETSTACK.push(sr).is_ok() {
+                    *parent_ret = mcount_return_trampoline as *const usize;
+                }
             }
         }
     }
@@ -391,12 +395,12 @@ fn set_eventbuf(eventbuf: &'static mut [Event]) {
 // interface, only used by 'parent' rftrace lib this static backend is linked to!
 
 #[no_mangle]
-pub extern "C" fn trs_get_events_index() -> usize {
+pub extern "C" fn rftrace_backend_get_events_index() -> usize {
     return unsafe { INDEX.load(Ordering::Relaxed) };
 }
 
 #[no_mangle]
-pub extern "C" fn trs_get_events() -> *const Event {
+pub extern "C" fn rftrace_backend_get_events() -> *const Event {
     return unsafe {
         EVENTS
             .take()
@@ -406,17 +410,17 @@ pub extern "C" fn trs_get_events() -> *const Event {
 }
 
 #[no_mangle]
-pub extern "C" fn trs_disable() {
+pub extern "C" fn rftrace_backend_disable() {
     disable();
 }
 
 #[no_mangle]
-pub fn trs_enable() {
+pub fn rftrace_backend_enable() {
     enable();
 }
 
 #[no_mangle]
-pub extern "C" fn trs_init(bufptr: *mut Event, len: usize, overwriting: bool) {
+pub extern "C" fn rftrace_backend_init(bufptr: *mut Event, len: usize, overwriting: bool) {
     let eventbuf = unsafe {
         assert!(!bufptr.is_null());
         slice::from_raw_parts_mut(bufptr, len)
@@ -432,46 +436,4 @@ pub extern "C" fn trs_init(bufptr: *mut Event, len: usize, overwriting: bool) {
     }
 
     set_eventbuf(eventbuf);
-}
-
-// In case we do NOT have to reexport (ie linking against rust via rlib), define the functions here, so they are not affected by instrument_mcount()
-#[no_mangle]
-#[cfg(not(feature = "reexportsymbols"))]
-pub unsafe extern "C" fn rftrace_backend_get_events_index() -> usize {
-    trs_get_events_index()
-}
-
-#[no_mangle]
-#[cfg(not(feature = "reexportsymbols"))]
-pub unsafe extern "C" fn rftrace_backend_get_events() -> *const Event {
-    trs_get_events()
-}
-
-#[no_mangle]
-#[cfg(not(feature = "reexportsymbols"))]
-pub unsafe extern "C" fn rftrace_backend_disable() {
-    trs_disable();
-}
-
-#[no_mangle]
-#[cfg(not(feature = "reexportsymbols"))]
-pub unsafe extern "C" fn rftrace_backend_enable() {
-    trs_enable();
-}
-
-#[no_mangle]
-#[cfg(not(feature = "reexportsymbols"))]
-pub unsafe extern "C" fn rftrace_backend_init(bufptr: *mut Event, len: usize, overwriting: bool) {
-    trs_init(bufptr, len, overwriting)
-}
-
-#[naked]
-#[no_mangle]
-#[cfg(not(feature = "reexportsymbols"))]
-pub unsafe extern "C" fn mcount() {
-    llvm_asm!(
-        "
-    jmp mcount_internal;
-    "
-    );
 }

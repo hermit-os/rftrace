@@ -45,8 +45,6 @@ fn build_backend() {
     let mut features = "staticlib".to_owned();
     #[cfg(feature = "interruptsafe")]
     features.push_str(",interruptsafe");
-    #[cfg(feature = "reexportsymbols")]
-    features.push_str(",reexportsymbols");
     cmd.args(&["--features", &*features]);
 
     // Always output color, so eventhough we are cargo-in-cargo, we get nice error messages on build fail

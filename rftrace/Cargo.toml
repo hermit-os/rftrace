@@ -10,12 +10,11 @@ build = "build.rs"
 buildcore = [] # Build core, needed when compiling against a kernel-target, such as x86_64-unknown-hermit-kernel.
 autokernel = [] # convenience flag, which specifies compilation target as `x86_64-unknown-hermit-kernel` when orignal target is `x86_64-unknown-hermit`
 interruptsafe = [] # backup and restore all scratch registers in the mcount_return trampoline. Needed if we instrument interrupt routines
-reexportsymbols = [] # workaround for rust bug https://github.com/rust-lang/rfcs/issues/2771, needed when linking against c code. DO NOT SET insturment_mcount when enabling this!
 
 default = ['interruptsafe']
 
 [lib]
-crate-type = ['cdylib', 'rlib']
+crate-type = ['staticlib', 'rlib']
 
 #[profile.dev]
 #panic = "abort"
