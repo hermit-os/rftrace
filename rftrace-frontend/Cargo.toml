@@ -5,7 +5,11 @@ authors = ["Thomas Lambertz <mail@thomaslambertz.de>"]
 license = "MIT OR Apache-2.0"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+keywords = ["tracing", "tracer", "function", "uftrace", "mcount", "instrumentation"]
+categories = ["development-tools::profiling"]
+description = "This crate provides a rftracer frontend for writing uftrace compatible traces."
+readme = "README.md"
+repository = "https://github.com/tlambertz/rftrace"
 
 [lib]
 crate-type = ['rlib']

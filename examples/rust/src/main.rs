@@ -7,11 +7,7 @@ fn main() {
     println!("Hello, world!");
     test1();
     rftrace::dump_full_uftrace(events, "tracedir", "test", true).expect("");
-    brp();
 }
-
-#[no_mangle]
-fn brp() {}
 
 fn test1() {
     println!("test1");

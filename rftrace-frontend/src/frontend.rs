@@ -4,17 +4,19 @@ use std::fs::File;
 use std::io::{self, prelude::*};
 
 extern "C" {
-    pub fn rftrace_backend_enable();
-    pub fn rftrace_backend_disable();
-    pub fn rftrace_backend_init(bufptr: *mut Event, len: usize, overwriting: bool);
-    pub fn rftrace_backend_get_events() -> *const Event;
-    pub fn rftrace_backend_get_events_index() -> usize;
+    fn rftrace_backend_enable();
+    fn rftrace_backend_disable();
+    fn rftrace_backend_init(bufptr: *mut Event, len: usize, overwriting: bool);
+    fn rftrace_backend_get_events() -> *const Event;
+    fn rftrace_backend_get_events_index() -> usize;
 }
 
+/// Enables tracing in the backend.
 pub fn enable() {
     unsafe { rftrace_backend_enable() }
 }
 
+/// Disables tracing in the backend.
 pub fn disable() {
     unsafe { rftrace_backend_disable() }
 }
@@ -39,10 +41,12 @@ fn get_events(events: &mut Events) -> (Vec<Event>, usize) {
     (eventvec, idx)
 }
 
-/// Initializes a new event buffer of size max_event_count.
-/// if 'overwriting', treats it as a ring-buffer, keeping only the most-recent entries.
-/// otherwise, stopps logging once it is full.
-/// max_event_count has to be at least 1000.
+/// Initializes a new event buffer.
+///
+/// Allocs a new buffer of size `max_event_count` and passes it to the backend.
+/// If `overwriting`, treats it as a ring-buffer, keeping only the most-recent entries, otherwise it stopps logging once it is full.
+/// `max_event_count` will not be filled completely, since space is left for the returns of hooked functions.
+/// Currently, the maximum stack-depth is 1000. Consequently, `max_event_count` has to be greater than 1000.
 pub fn init(max_event_count: usize, overwriting: bool) -> &'static mut Events {
     assert!(
         max_event_count > MAX_STACK_HEIGHT,
@@ -58,23 +62,24 @@ pub fn init(max_event_count: usize, overwriting: bool) -> &'static mut Events {
     }
 }
 
+
+/// Dumps the traces with some faked metadata into the given folder. Uses the same format as uftrace, which should be used to parse them.
+///
+/// Will NOT generate symbols! You can generate them with `nm -n $BINARY > binary_name.sym`
+///
+/// # Arguments
+///
+/// * `events` - Events buffer to write, returned by `init()`
+/// * `out_dir` - folder into which the resulting trace is dumped. Has to exist.
+/// * `binary_name` - only relevant for this symbol file. Generated metadata instructs uftrace where to look for it.
+/// * `linux` - if true, don't fake the memory map, copy it from /proc/self/maps.
+///
 pub fn dump_full_uftrace(
     events: &mut Events,
     out_dir: &str,
     binary_name: &str,
     linux: bool,
 ) -> io::Result<()> {
-    //! Dumps the traces with some faked metadata into out_dir. Can be directly parsed with uftrace.
-    //!
-    //! Will NOT generate symbols! You can generate them with `nm -n $BINARY > binary_name.sym`
-    //!
-    //! binary_name is only relevant for this symbol file. Generated metadata instructs uftrace where to look for it.
-    //!
-    //! out_dir has to point to a folder, which has to exist.
-    //!
-    //! linux: it true, don't fake the memory map, copy it from /proc/self/maps.
-    //! this breaks on RustyHermit, since __executable_start points to 0x200000, but symbols are not reloc'd
-
     // arbitrary values for pid and sid
     let pid = 42;
     let sid = "00";
@@ -207,6 +212,23 @@ pub fn dump_full_uftrace(
     Ok(())
 }
 
+/// Dumps only the trace file to disk, without additional metadata.
+///
+/// `events` is the Events buffer as returned by `init`.
+/// outfile is the file into which the output trace is written.
+/// The trace itself has the same format as uftrace, but is not directly parsable due to the missing metadata.
+///
+/// # Format
+/// Packed array of uftrace_record structs
+/// ```c
+/// struct uftrace_record {
+///     uint64_t time;
+///     uint64_t type:   2;
+///     uint64_t more:   1;
+///     uint64_t magic:  3;
+///     uint64_t depth:  10;
+///     uint64_t addr:   48; /* child ip or uftrace_event_id */
+/// };
 pub fn dump_trace(events: &mut Events, outfile: &str) -> io::Result<()> {
     dump_traces(events, outfile, true)?;
     Ok(())

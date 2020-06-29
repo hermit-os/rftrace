@@ -1,0 +1,23 @@
+[package]
+name = "rftrace-hermit-rs-test"
+version = "0.1.0"
+authors = ["Thomas Lambertz <mail@thomaslambertz.de>"]
+license = "MIT OR Apache-2.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rftrace = {path="../../rftrace", features=["buildcore","autokernel"]}
+rftrace-frontend = {path="../../rftrace-frontend"}
+
+
+[target.'cfg(target_os = "hermit")'.dependencies]
+#hermit-sys = {version="0.1.*", features=["instrument"]}
+hermit-sys = {git="https://github.com/tlambertz/rusty-hermit", branch="instrument-tmp", features=["instrument"]}
+
+[profile.release]
+opt-level = 3
+
+[profile.dev]
+opt-level = 1

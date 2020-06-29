@@ -1,0 +1,6 @@
+SESS timestamp=0.0 pid=42 sid=00 exename="test"
+TASK timestamp=0.0 tid=1 pid=42
+TASK timestamp=0.0 tid=2 pid=42
+TASK timestamp=0.0 tid=3 pid=42
+TASK timestamp=0.0 tid=4 pid=42
+TASK timestamp=0.0 tid=5 pid=42

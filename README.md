@@ -1,18 +1,19 @@
 <!-- omit in toc -->
 # rftrace - Rust Function Tracer
 
-rftrace is a rust based function tracer. It provides both a backend, which does the actual tracing, and a frontend which write the traces to disk. The backend supports all execution environments. As such it can be used to fully trace a unikernel like [RustyHermit](https://github.com/hermitcore/libhermit-rs) though OS, application and stdlib, but also works for normal Rust applications.
+rftrace is a rust based function tracer. It provides both a backend, which does the actual tracing, and a frontend which write the traces to disk. The backend is designed to standalone and not interact with the system. As such it can be used to fully trace a kernel like [RustyHermit](https://github.com/hermitcore/libhermit-rs) though OS, interrupts, stdlib and application. Multiple threads are supported. It also works for normal Rust and C applications, though better tools exist for that usecase.
 
-Requires the nightly rust compiler!
+Requires a recent nightly rust compiler (as of 28-6-2020).
 
 ## Table of Contents
 - [Table of Contents](#table-of-contents)
 - [Design](#design)
 - [Dependencies](#dependencies)
 - [Usage](#usage)
-  - [For a normal Rust application](#for-a-normal-rust-application)
-  - [For RustyHermit](#for-rustyhermit)
-  - [For another kernel](#for-another-kernel)
+  - [Adding rftrace to your application](#adding-rftrace-to-your-application)
+    - [Linux Rust application](#linux-rust-application)
+    - [RustyHermit](#rustyhermit)
+    - [Any other kernel](#any-other-kernel)
   - [Output Format](#output-format)
   - [Chrome trace viewer](#chrome-trace-viewer)
   - [Tracing host applications simultaneously](#tracing-host-applications-simultaneously)
@@ -40,32 +41,41 @@ Requires the nightly rust compiler!
 ## Design
 I was in need of a function tracer, which works in both kernel and userspace to trace a [RustyHermit](https://github.com/hermitcore/libhermit-rs) application. Preferably without manually annotating source code, as a plug and play solution. Since RustyHermit also has a gcc toolchain, it should work with applications instrumented with both rustc and gcc.
 
-The best way to do this is to use the function instrumentation provided by the compilers, where they insert `mcount()` calls in each function prologue. This is possible in gcc with the `-pg` flag, and in rustc with the newly added  `-Z instrument-mcount` flag. The same mechanism is used with success by eg [uftrace](https://github.com/namhyung/uftrace): [[Issue]](https://github.com/namhyung/uftrace/issues/594)
+The best way to do this is to use the function instrumentation provided by the compilers, where they insert `mcount()` calls in each function prologue. This is possible in gcc with the `-pg` flag, and in rustc with the newly added  `-Z instrument-mcount` flag. The same mechanism is used with success by eg [uftrace](https://github.com/namhyung/uftrace), which already provides [Rust Support](https://github.com/namhyung/uftrace/issues/594).
 
 This tracer is split into two parts: a backend and a frontend.
 
-The backend is a static library which provides said `mcount()` call and is responsible for logging every function entry and exit into a buffer. It is written in Rust, but is `no_std` and even no alloc. Since it is compiled separately as a static library, we can even use a different target. This is currently needed, since we embed the library from our applications, which are for example allowed to use SSE registers. These will cause an abort when used in the wrong situations in the kernel though! By compiling the staticlib against a kernel-target, we avoid this issue. Another reason for this sub-compilation, is that unlike gcc, rust does not provide a mechanism do selectively disable instrumentation yet. We cannot instrument the `mcount` function itself, else we get infinite recursion.
+The backend is a static library which provides said `mcount()` call and is responsible for logging every function entry and exit into a buffer. It is written in Rust, but is `no_std` and even no alloc. Unlike uftrace, it does not rely on any communication with external software (such as the OS for eg thread-ids). It does require  thread-local-storage though.
 
-The frontend interfaces with the backend via a few function calls. It provides with a event-buffer (needed since backend is no-alloc), and is responsible for saving the traces once done. In theory it is easily replacable with your own, but the API is not yet fleshed out.
+Since it is compiled separately as a static library, we can even use a different target architecture. This is needed to easily embed the library into our application, which is for example allowed to use SSE registers. These will cause an abort when used in the wrong situations in the kernel though! By compiling the staticlib against a kernel-target, we avoid this issue and can trace kernel and userspace simultaneously. Another reason for this sub-compilation is, that unlike gcc, rust does not provide a mechanism do selectively disable instrumentation yet. We cannot instrument the `mcount` function itself, else we get infinite recursion.
+
+The frontend interfaces with the backend via a few function calls. It provides the backend with an event-buffer (needed since backend is no-alloc), and is responsible for saving the traces once done. In theory it is easily replacable with your own, but the API is not yet fleshed out.
 
 ## Dependencies
-The traced application has to be instrumented with `mcount`, which can be done with the rustc compiler option `-Z instrument-mcount`, or gcc's `-pg` flag.
+The function-prologues of the traced application have to be instrumented with `mcount`. This can be done with the rustc compiler option `-Z instrument-mcount`, or gcc's `-pg` flag.
 
-There are no other dependencies required for recording a trace. The output format is the same as the one used by [uftrace](https://github.com/namhyung/uftrace/), so you will need it to view and convert it. There are scripts which can merge traces from multiple different sources in `/tools`, these need `python3`.
+The backend implicitly assumes a System-V ABI. This affects what registers need to be saved and restored on each function entry and exit, and how funciton-exit-hooking is done. If you use a different convention, check if `mcount()` and `mcount_return_trampoline()` handle the correct registers.
 
-When tracing a custom kernel, it currently needs to provide the capability to write files into a directory, otherwise we cannot save the trace. It also needs to support thread locals, since we use them as a shadow-return-stack.
+For the logging of callsites and function exits, frame pointers are needed, so make sure your compiler does not omit them as an optimization.
+
+There are no other dependencies required for recording a trace. The output format is the same as the one used by [uftrace](https://github.com/namhyung/uftrace/), so you will need it to view and convert it. There are (currently out-of-date) scripts which can merge traces from multiple different sources in `/tools`, these need `python3`.
+
+When tracing a custom kernel, it needs to provide the capability to write files into a directory, otherwise we cannot save the trace. It also needs to support thread-local-storage, since we use it as a shadow-return-stack and thread-id allocation.
 
 ## Usage
+There are 4 usage examples in `/examples`: Rust and C, both on normal Linux x64 and RustyHermit. These are the only tested architectures.
 
-### For a normal Rust application
+### Adding rftrace to your application
+#### Linux Rust application
 
-To use rftrace, add it as a dependency to your cargo.toml, while enabling the 'backend' feature, which will enable the compilation of the backend. Frontend is compiled by default.
+To use rftrace, add both the backend and a frontend to your dependencies.
 ```toml
 [dependencies]
-rftrace = {git = "https://github.com/tlambertz/rftrace", features = "backend"}
+rftrace = "0.1"
+rftrace-frontend = "0.1"
 ```
 
-You will have to ensure that the frame pointers are generated, and not disabled for optimization reasons! Debug build always seem to have them enabled.
+Ensure that frame pointers are generated! Debug build always seem to have them enabled.
 
 Enable `-Z instrument-mcount`, by either setting environment variable `RUSTFLAGS="-Z instrument-mcount"`, or by including in `.cargo/config`:
 ```toml
@@ -73,7 +83,7 @@ Enable `-Z instrument-mcount`, by either setting environment variable `RUSTFLAGS
 rustflags=["-Z", "instrument-mcount"]
 ```
 
-When using vscode, this can easily be done by modifying your compile task to include
+When using vscode, the first can easily be done by modifying your compile task to include
 ```json
 "options": {
     "env": {
@@ -81,7 +91,6 @@ When using vscode, this can easily be done by modifying your compile task to inc
     }
 },
 ```
-
 
 To actually do the tracing, you have to also add some code to your crate, similar to the following
 ```rs
@@ -97,22 +106,27 @@ fn main() {
 
 ```
 
-### For RustyHermit
-When tracing rusty-hermit, the backend is linked directly to the kernel. This can be enabled with the `instrument` feature of hermit-sys. Therefore we only need the frontend in out application, so no feature flag for rftrace. By using the instrument feature, the kernel is automatically instrumented. If you additionally want your application to be instrumented, set `instrument-mcount` as seen above.
+#### RustyHermit
+When tracing rusty-hermit, the backend is linked directly to the kernel. This is enabled with the `instrument` feature of hermit-sys (not upstream yet). Therefore we only need the frontend in our application. By using the instrument feature, the kernel is always instrumented. To additionally log functions calls of your application, set the `instrument-mcount` rustflag as seen above.
+
+
+I further suggest using at least opt-level 2, else a lot of useless clutter will be created by the stdlib. (we are building it ourselves here with `-Z build-std=std,...` so it is affected by the instrument rustflag!)
 
 ```toml
 [dependencies]
 hermit-sys = { path = "../hermit-sys", default-features = false, features = ["instrument"] }
-rftrace = { git = "https://github.com/tlambertz/rftrace" }
+rftrace = "0.1"
 ```
 
-I further suggest using at least opt-level 2, else a lot of useless clutter from the also trace stdlib will be created!
+#### Any other kernel
+Unfortunately, there is no way to communicate a fixed, different compilation-target to the backend. There is an open cargo issue for allowing arbitrary environment variables to be set: [Passing environment variables from down-stream to up-stream library](https://github.com/rust-lang/cargo/issues/4121)
 
+For RustyHermit there is a workaround with the `autokernel` feature, which can easily be extended to other targets. Outside of this, you can also set a custom target by setting the environment variable `RFTRACE_TARGET_TRIPLE` to your wanted triple.
 
-### For another kernel
-Unfortunately, there is no way to communicate the target the backend is compiled for directly to our dependency. There is an open cargo issue for allowing arbitrary environment variables to be set: [Passing environment variables from down-stream to up-stream library](https://github.com/rust-lang/cargo/issues/4121)
+Other backend features which might be of interest are:
+- `buildcore` - needed for no-std targets. Will build the core library when building the backend.
+- `interruptsafe` - enabled by default. Will safe and restore more registers on function exits, to ensure interrupts do not clobber them. Probably only needed when interrupts are instrumented. Can be disabled for performance reasons.
 
-You can set a custom target by manually setting the environment variable `RFTRACE_TARGET_TRIPLE` to your wanted triple.
 
 ### Output Format
 The frontend outputs a trace folder compatible to uftrace: [uftrace's Data Format](https://github.com/namhyung/uftrace/wiki/Data-Format).
@@ -127,8 +141,6 @@ The full trace consists of 5+ files, 4 for metadata plus 1 per TID which contain
 - `/task.txt`: contains PID, TID, SID<->exename mapping
 - `/sid-<SID>.map`: contains mapping of addr to exename. By default, the memory map is faked. You can enable linux-mode, in which case `/proc/self/maps` is copied. 
 - `/<exename>.sym`: contains symbols of exe, like output of `nm -n` (has to be sorted!). Symbols are never generated and always have to be done by hand.
-
-
 
 
 ### Chrome trace viewer
@@ -191,9 +203,9 @@ The simple case of only recoring ips is done with
 
 Since it has lots of features, is contains a lot of code. The most relevant part for us is `libmcount`. This is a library used with `LD_PRELOAD` which provides the `mcount()` call to the instrumented program. Even though libmcount can be build without dependencies, a lot of optional ones are there and used by default. I only need a very small part of it.
 
-Since libmcount is intended for userspace tracing, and I want to embed it into the HermitCore kernel, a number of issues arise:
-- use of shared-memory, 'mounted' via files to communicate the trace results between mcount and uftrace, which is not implemented in HermitCore
-- all parameters get passed via environment variables, which are annoying to set when tracing HermitCore
+Since libmcount is intended for userspace tracing, and I want to embed it into the hermit kernel, a number of issues arise:
+- use of shared-memory, 'mounted' via files to communicate the trace results between mcount and uftrace, which is not implemented in RustyHermit
+- all parameters get passed via environment variables, which are annoying to set when tracing RustyHermit
 - no convenient on/off switch. We cannot trace everything, especially early boot
 - written in C -> always need gcc toolchain
 
@@ -251,6 +263,8 @@ Nontheless, we still backup app potential parameter-registers, just to be on the
 
 It would be quite easy to implement a feature to disable this saving at compile-time, so tracing is faster on supported codebases.
 
+We need to be especially careful when hooking interrupts, since mcount might now get called in the middle of another function and must not clobber any state. The  `interruptsafe` feature is designed to enable this extra safety at a small runtime cost.
+
 For further reading on desiging function tracers, see [Kernel ftrace design](https://www.kernel.org/doc/html/latest/trace/ftrace-design.html). You could also consult uftrace's libmcount.
 
 
@@ -279,20 +293,14 @@ The build process is a bit weird, since we build a static rust library and then 
 
 We need the second manifest, since it is [not possible to change the library type outside of it](https://github.com/rust-lang/cargo/issues/6160#issuecomment-428778868).
 
-It might be easier to just use two crates for this, then we might not need staticlib and c-like-bindings in `lib.rs`. The way it is now is working fine however. Feel free to send a pull request.
-
 You can compile only static lib manually with
-`cargo build --manifest-path staticlib/Cargo.toml --target-dir target_static --features staticlib -vv`
+`cargo build --manifest-path rftrace/staticlib/Cargo.toml --target-dir target_static --features staticlib -vv`
 
 
 ## Future Work
 - investigate speed penalty caused by the tracing
-- split front and backend into multiple crates
-- investigate if it is possible to call rust functions in staticlib directly, without "exporting" as native C, and then implementing callers for them in rust.
-- test with c-based gcc compiled application
 - create frontend which can output the trace over network, so no file access is needed
 - there is a '`no_instrument_function`' LLVM attribute, though not exposed by rust codegen. Might be easy to add an attribute here. See [Make it easy to attach LLVM attributes to Rust functions](https://github.com/rust-lang/rust/issues/15180#issuecomment-137569985). This would remove the need for a staticlib, but only in the case where we are compiling for the same target (not the kernel).
-
 
 ## License
 

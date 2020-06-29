@@ -6,6 +6,12 @@ license = "MIT OR Apache-2.0"
 edition = "2018"
 build = "build.rs"
 
+keywords = ["tracing", "tracer", "function", "uftrace", "mcount", "instrumentation"]
+categories = ["no-std", "development-tools::profiling"]
+description = "Function tracer backend. Logs all functions entries and exits. Works on all software compiled with mcount() instrumentation."
+readme = "README.md"
+repository = "https://github.com/tlambertz/rftrace"
+
 [features]
 buildcore = [] # Build core, needed when compiling against a kernel-target, such as x86_64-unknown-hermit-kernel.
 autokernel = [] # convenience flag, which specifies compilation target as `x86_64-unknown-hermit-kernel` when orignal target is `x86_64-unknown-hermit`
