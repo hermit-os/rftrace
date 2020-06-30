@@ -50,4 +50,7 @@ runkvm: default
 	# merge events, correct time, output json trace
 	../../tools/merge.py -b $(BINARY) -f 3593248 -k tracekvm.dat tracedir tracedir/trace.json
 
-.PHONY: default
+clean:
+	cargo clean
+
+.PHONY: default clean runkvm run

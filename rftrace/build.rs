@@ -1,5 +1,24 @@
 use std::env;
 use std::process::{Command, Stdio};
+use std::fs::{self, File};
+use std::io::prelude::*;
+
+fn prepare_staticlib_toml(out_dir: &str) -> std::io::Result<String> {
+    let manifest = format!("{}/staticlib/Cargo.toml", out_dir);
+    fs::create_dir_all(format!("{}/staticlib", out_dir)).expect("Could not create directory for staticlib");
+    let toml = fs::read_to_string("staticlib/Cargo.nottoml")?;
+
+    // Adapt path
+    let mut lib  = env::current_dir()?;
+    lib.push("src");
+    lib.push("lib.rs");
+    let toml = toml.replace("../src/lib.rs", lib.to_str().expect("Invalid staticlib path"));
+
+    let mut toml_out = File::create(&manifest)?;
+    toml_out.write_all(toml.as_bytes())?;
+    //fs::copy("", format!("{}/staticlib/Cargo.toml", out_dir)).expect("Could not copy staticlib Cargo.toml");
+    Ok(manifest)
+}
 
 fn build_backend() {
     println!("Building Backend!");
@@ -38,7 +57,9 @@ fn build_backend() {
     cmd.args(&["--target-dir", &full_target_dir]);
 
     // Use custom manifest, which defines that this compilation is a staticlib
-    cmd.args(&["--manifest-path", "staticlib/Cargo.toml"]);
+    // crates.io allows only one Cargo.toml per package, so copy here
+    let manifest = prepare_staticlib_toml(&out_dir).expect("Could not prepare staticlib toml file!");
+    cmd.args(&["--manifest-path", &manifest]);
 
     // Enable the staticlib feature, so we can do #[cfg(feature='staticlib')] gate our code
     // Pass-through interruptsafe and reexportsymbols features

@@ -294,7 +294,7 @@ The build process is a bit weird, since we build a static rust library and then 
 
 We need the second manifest, since it is [not possible to change the library type outside of it](https://github.com/rust-lang/cargo/issues/6160#issuecomment-428778868).
 
-You can compile only static lib manually with
+You can compile only static lib manually by renaming `rftrace/staticlib/Cargo.nottoml` to `rftrace/staticlib/Cargo.toml` and running 
 `cargo build --manifest-path rftrace/staticlib/Cargo.toml --target-dir target_static --features staticlib -vv`
 
 
