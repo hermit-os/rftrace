@@ -5,12 +5,24 @@ use rftrace_frontend as rftrace;
 extern crate hermit_sys;
 
 use std::thread;
+use std::time::SystemTime;
+
 
 fn main() {
     let events = rftrace::init(100000, false);
+
+    let start = SystemTime::now();
+
     rftrace::enable();
     println!("Hello, world!");
     test1();
+    rftrace::disable();
+
+    let duration = SystemTime::now()
+        .duration_since(start)
+        .expect("Time went backwards");
+    println!("Duration: {:?}", duration);
+
     rftrace::dump_full_uftrace(events, "/tracedir", "test", false).expect("");
 }
 

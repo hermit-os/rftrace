@@ -1,12 +1,14 @@
+# You need to provide a compiled rusty-loader, hermit-gcc, the libhermit-rs source and virtiofsd.
+
 TARGET = x86_64-unknown-hermit
 
 GCC = ../../../toolchain/bin/x86_64-hermit-gcc
-RUSTY_LOADER = ../../../rusty-hermit/loader/target/x86_64-unknown-hermit-loader/debug/rusty-loader
+RUSTY_LOADER = ../../../unmodified/rusty-loader/target/x86_64-unknown-hermit-loader/debug/rusty-loader
 VIRTIOFSD = ../../../qemu-master/build/virtiofsd
 LIBHERMIT_SRC = ../../../libhermit-rs
 
 LIBRARY_PATH = out/$(TARGET)/debug/
-HERMIT_PATH = out/$(TARGET)-kernel/debug/
+HERMIT_PATH = out/$(TARGET)-kernel/release/
 
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -19,7 +21,7 @@ example: main.c $(LIBRARY_PATH)/librftrace.a $(LIBRARY_PATH)/librftrace_frontend
 	$(GCC) main.c -p -static -lrftrace_frontend_ffi -lrftrace -lhermit -L$(LIBRARY_PATH) -L$(HERMIT_PATH) -o example
 
 $(HERMIT_PATH)/libhermit.a:
-	RUSTFLAGS=$(RUST_FLAGS) cargo build --manifest-path $(LIBHERMIT_SRC)/Cargo.toml -Z build-std=core,alloc --target $(TARGET)-kernel --features newlib --target-dir out
+	RUSTFLAGS=$(RUST_FLAGS) cargo build --manifest-path $(LIBHERMIT_SRC)/Cargo.toml -Z build-std=core,alloc --target $(TARGET)-kernel --features newlib  --release --target-dir out
 
 $(LIBRARY_PATH)/librftrace.a:
 	cargo build --manifest-path ../../rftrace/Cargo.toml --target $(TARGET) --features autokernel,buildcore --target-dir out -Z build-std=std,panic_abort

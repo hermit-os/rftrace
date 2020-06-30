@@ -3,78 +3,6 @@
 import json, struct, shutil, tempfile, subprocess, re, sys, argparse
 from pathlib import Path
 
-def create_fake_uftrace(dirname, tracefile, binary=None, PID=123, TID=42, SID=b"00"):
-    """ Creates a fake uftrace from just a trace.dat file + the original binary for symbols.
-    other params can be chosen freely. Not really important, just cosmetics
-    """
-
-    print(f"Creating fake uftrace data dir at {dirname}..")
-    print("  Creating /info")
-    print("    feats = TASK_SESSION")
-    TASK_SESSION = 1 << 1 # needed.
-    feats = struct.pack("<Q", TASK_SESSION)
-
-    print("    info = CMDLINE | TASKINFO")
-    CMDLINE = 1 << 3 # needed, else --dump chrome outputs invalid json.
-    TASKINFO = 1 << 7 # needed, since uftrace uses this to determine how to interpret task.txt
-    infos = struct.pack("<Q", CMDLINE | TASKINFO)
-    
-    print(f"    cmdline = 'fakeuftrace'")
-    print(f"    tid = {TID}")
-
-    rest  = b"cmdline:fakeuftrace\n"
-    rest += b"taskinfo:lines=2\n"
-    rest += b"taskinfo:nr_tid=1\n"
-    rest += b"taskinfo:tids=%d\n" % TID
-
-    magic = b"Ftrace!\x00"
-    version = b"\x04\x00\x00\x00" # we are using version 4 of fileformat
-    size = b"\x28\x00" # 0x28 == 40 bytes
-    endian = b"\x01"
-    classs = b"\x02" # elf_ident[EI_CLASS]. always 2 for 64bit
-    mstack = b"\x00\x00" # disabled feature
-    reserved = b"\x00"*6 # reverved, always 0
-
-    with open(f"{dirname}/info", "wb") as f:
-        f.write(magic+version+size+endian+classs+feats+infos+mstack+reserved+rest)
-
-    if binary:
-        EXENAME = binary.split("/")[-1]
-    else:
-        EXENAME = "tracedguest"
-
-    print("  Creating /task.txt")
-    print(f"    pid = {PID}")
-    print(f"    sid = {SID.decode()}")
-    print(f"    exe = {EXENAME}")
-    tasktxt  = b"SESS timestamp=0.0 pid=%d sid=%s exename=\"%s\"\n" % (PID, SID, EXENAME.encode())
-    tasktxt += b"TASK timestamp=0.0 tid=%d pid=%d\n" % (TID, PID)
-
-    with open(f"{dirname}/task.txt", "wb") as f:
-        f.write(tasktxt)
-
-    print(f"  Creating /sid-{SID.decode()}.map memory map file")
-    memmap  = b"000000000000-7f0000000000 r-xp 00000000 00:00 0                          %s\n" % EXENAME.encode()
-    memmap += b"7f0000000000-7fffffffffff rw-p 00000000 00:00 0                          [stack]\n"
-
-    with open(f"{dirname}/sid-{SID.decode()}.map", "wb") as f:
-        f.write(memmap)
-
-    # copy trace data
-    print("  Copying trace file")
-    shutil.copyfile( tracefile , f"{dirname}/{TID}.dat" )
-
-    # generate symbols
-    if binary:
-        print("  Generating symbols with nm")
-        nm_cmd = ['nm', '-n', binary]
-        with open(f"{dirname}/{EXENAME}.sym", "w") as symbolfile:
-            subprocess.run(nm_cmd, stdout=symbolfile)
-    else:
-        print("  No binary specified, not generating any symbols!")
-
-    print("Done!")
-
 
 def parse_uftrace(uftracedir):
     """ parses uftrace trace to get chrome json file """
@@ -147,7 +75,7 @@ def parse_tracecmd_trace(trace_cmd_trace_file):
 
 
 
-def do_chrome():
+def merge():
     if args.offset == 'auto':
         print("Trying to autodetect offset..")
 
@@ -173,12 +101,16 @@ def do_chrome():
     else:
         offset = int(args.offset)
 
-    # use uftrace to convert traces to chrome json trace format
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        print('Created temporary directory', tmpdirname)
-        create_fake_uftrace(tmpdirname, args.TRACE, args.binary)
+    # if binary is specified, generate symbols for trace
+    if args.binary:
+        print("Generating symbols with nm")
+        nm_cmd = ['nm', '-n', args.binary]
+        with open(f"{args.TRACE}/{args.binaryname}.sym", "w") as symbolfile:
+            subprocess.run(nm_cmd, stdout=symbolfile)
+    else:
+        print("No binary specified, not generating any symbols!")
 
-        hermit_trace = parse_uftrace(tmpdirname)
+    hermit_trace = parse_uftrace(args.TRACE)
     
     if args.merge:
         merge_trace = parse_uftrace(args.merge)
@@ -246,18 +178,13 @@ def do_uftrace():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Convert and merge traces. Can output either a chrome json trace file, or converted pseudo uftrace.')
+    parser = argparse.ArgumentParser(description='Merge traces (and/or fix timestamps). Outputs a chrome json trace file.')
 
     parser.add_argument("TRACE", help="path to one or more guest trace files, as output by the tracing crate")
     parser.add_argument("OUTPUT", help="file or folder where output gets stored")
 
-    parser.add_argument("--mode", help="""
-                                output mode, defaults to 'chrome'.
-                                'chrome': Convert and merge traces, output single json file.
-                                'uftrace': Convert to uftrace, outputs trace directory.
-                                """, default="chrome", choices=["chrome", "uftrace"])
-
     parser.add_argument("-b", "--binary", help="path to guest binary, used to generate the symbols of the guest trace")
+    parser.add_argument("-B", "--binaryname", help="name of guest binary, has to match fake uftrace metadata", default="test")
     parser.add_argument("-O", "--offset", help="guest <-> host TSC offset. If 'auto', determines it from a) given KVM trace or b) linux tracing", default="auto")
     parser.add_argument("-m", "--merge", help="merge with additional trace, recorded on the host. Has to be a patched-uftrace trace (with TSC time)")
     parser.add_argument("-k", "--kvm", help="path to the trace-cmd trace of kvm samples (trace-cmd record -e 'kvm:*' -C x86-tsc)")
@@ -271,7 +198,4 @@ if __name__ == "__main__":
 
     time_stretch = 1 # can stretch time for better zooming in perfetto ui
 
-    if args.mode == "chrome":
-        do_chrome()
-    else:
-        do_uftrace()
+    merge()
