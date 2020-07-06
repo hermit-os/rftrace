@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Thomas Lambertz <mail@thomaslambertz.de>"]
 edition = "2018"
 
-keywords = ["tracing", "tracer", "function", "uftrace", "mcount", "instrumentation"]
+keywords = ["tracing", "function", "uftrace", "mcount", "instrumentation"]
 categories = ["development-tools::profiling"]
 description = "Default rftracer frontend as a static library so it can be called from C code."
 readme = "README.md"

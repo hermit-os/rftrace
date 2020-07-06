@@ -5,7 +5,7 @@ authors = ["Thomas Lambertz <mail@thomaslambertz.de>"]
 license = "MIT OR Apache-2.0"
 edition = "2018"
 
-keywords = ["tracing", "tracer", "function", "uftrace", "mcount", "instrumentation"]
+keywords = ["tracing", "function", "uftrace", "mcount", "instrumentation"]
 categories = ["development-tools::profiling"]
 description = "Rftracer frontend for writing uftrace compatible traces."
 readme = "README.md"

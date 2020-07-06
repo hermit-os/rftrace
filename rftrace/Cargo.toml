@@ -6,7 +6,7 @@ license = "MIT OR Apache-2.0"
 edition = "2018"
 build = "build.rs"
 
-keywords = ["tracing", "tracer", "function", "uftrace", "mcount", "instrumentation"]
+keywords = ["tracing", "function", "uftrace", "mcount", "instrumentation"]
 categories = ["no-std", "development-tools::profiling"]
 description = "Function tracer backend. Logs all functions entries and exits. Works on all software compiled with mcount() instrumentation."
 readme = "README.md"
