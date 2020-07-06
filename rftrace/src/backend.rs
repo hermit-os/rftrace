@@ -150,7 +150,6 @@ pub extern "C" fn mcount() {
 pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const usize) {
     unsafe {
         if ENABLED {
-
             let tid = match TID {
                 None => {
                     // We are not yet initialized, do it now

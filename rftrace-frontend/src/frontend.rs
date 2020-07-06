@@ -62,7 +62,6 @@ pub fn init(max_event_count: usize, overwriting: bool) -> &'static mut Events {
     }
 }
 
-
 /// Dumps the traces with some faked metadata into the given folder. Uses the same format as uftrace, which should be used to parse them.
 ///
 /// Will NOT generate symbols! You can generate them with `nm -n $BINARY > binary_name.sym`
