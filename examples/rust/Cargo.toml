@@ -8,5 +8,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rftrace = {path="../../rftrace"}
-rftrace-frontend = {path="../../rftrace-frontend"}
+#rftrace = {path="../../rftrace"}
+rftrace = "0.1.0"
+
+#rftrace-frontend = {path="../../rftrace-frontend"}
+rftrace-frontend = "0.1.0"
