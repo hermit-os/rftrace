@@ -111,7 +111,7 @@ When tracing rusty-hermit, the backend is linked directly to the kernel. This is
 
 I further suggest using at least opt-level 2, else a lot of useless clutter will be created by the stdlib. (we are building it ourselves here with `-Z build-std=std,...` so it is affected by the instrument rustflag!)
 
-An example with makefile, which does all the needed trace gathering, timing conversions and kvm-event merging to get a nice trace is provided in `/examples/hermitrust`
+An example with makefile, which does all the needed trace gathering, timing conversions and kvm-event merging to get a nice trace is provided in `/examples/hermitrust`, and can be compiled and run with `make runkvm`
 
 ```toml
 [dependencies]
