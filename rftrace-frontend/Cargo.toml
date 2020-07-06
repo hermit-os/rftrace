@@ -7,7 +7,7 @@ edition = "2018"
 
 keywords = ["tracing", "tracer", "function", "uftrace", "mcount", "instrumentation"]
 categories = ["development-tools::profiling"]
-description = "This crate provides a rftracer frontend for writing uftrace compatible traces."
+description = "Rftracer frontend for writing uftrace compatible traces."
 readme = "README.md"
 repository = "https://github.com/tlambertz/rftrace"
 

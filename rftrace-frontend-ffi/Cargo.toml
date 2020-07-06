@@ -6,7 +6,7 @@ edition = "2018"
 
 keywords = ["tracing", "tracer", "function", "uftrace", "mcount", "instrumentation"]
 categories = ["development-tools::profiling"]
-description = "This crate provides the default rftracer frontend as a static library so it can be called from C code."
+description = "Default rftracer frontend as a static library so it can be called from C code."
 readme = "README.md"
 repository = "https://github.com/tlambertz/rftrace"
 
