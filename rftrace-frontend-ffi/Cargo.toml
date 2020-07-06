@@ -2,6 +2,7 @@
 name = "rftrace-frontend-ffi"
 version = "0.1.0"
 authors = ["Thomas Lambertz <mail@thomaslambertz.de>"]
+license = "MIT OR Apache-2.0"
 edition = "2018"
 
 keywords = ["tracing", "function", "uftrace", "mcount", "instrumentation"]
@@ -14,4 +15,4 @@ repository = "https://github.com/tlambertz/rftrace"
 crate-type = ["staticlib"]
 
 [dependencies]
-rftrace-frontend = {path="../rftrace-frontend"}
+rftrace-frontend = {path="../rftrace-frontend", version="0.1"}
