@@ -94,12 +94,16 @@ fn build_backend() {
     }
 
     // Ensure rustflags does NOT contain instrument-mcount!
-    cmd.env(
-        "RUSTFLAGS",
-        env::var("RUSTFLAGS")
-            .unwrap_or("".into())
-            .replace("-Z instrument-mcount", ""),
-    );
+    let rustflags = env::var("RUSTFLAGS").unwrap_or("".into());
+    if rustflags.contains("mcount") {
+        println!("WARNING: RUSTFLAGS contains mcount, trying to remove the key.");
+        cmd.env(
+            "RUSTFLAGS",
+            rustflags
+                .replace("-Z instrument-mcount", "")
+                .replace("-Z instrument_mcount", ""),
+        );
+    }
 
     // Execute and get status.
     println!("Starting sub-cargo");
