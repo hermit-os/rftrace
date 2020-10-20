@@ -186,6 +186,32 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
                 });
             }
 
+            // TODO: clean up this hack! we check if we are in mcount, or mcount_entry, mcount_return_tampoline or mcount_return
+            if parent_ret_deref >= (mcount as *const usize) && parent_ret_deref <= (rftrace_backend_get_events_index as *const usize) {
+                /*unsafe {
+                    *(0 as *mut u8) = 0;
+                }
+                panic!("BLUB!");*/
+                //disable();
+                // Maybe insert fake end, so uftrace is not confused and crashes because its internal function stack overflows.
+                if let Some(events) = &mut EVENTS {
+                    let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
+                    if !OVERWRITING && cidx >= events.len() - MAX_STACK_HEIGHT {
+                        disable();
+                        return;
+                    }
+
+                    events[cidx % events.len()] = Event::Exit(Exit {
+                        time: _rdtsc()+20,
+                        from: child_ret,
+                        tid: tid,
+                    });
+                }
+
+
+                return;
+            }
+
             if hook_return {
                 let sr = SavedRet {
                     stackloc: parent_ret,
@@ -237,7 +263,13 @@ pub extern "C" fn mcount_return_trampoline() {
     unsafe {
         /* space for locals (saved ret values) (if we dont back up xmm0+1, this is too much, but this won't hurt us) */
         #[cfg(feature = "interruptsafe")]
-        llvm_asm!("sub $$112, %rsp");
+        llvm_asm!("push %rax"); // fake return value for later
+        #[cfg(feature = "interruptsafe")]
+        llvm_asm!("pushfq"); // flags for interrupt stuff
+        #[cfg(feature = "interruptsafe")]
+        llvm_asm!("cli"); // dont do interrupts here!
+        #[cfg(feature = "interruptsafe")]
+        llvm_asm!("sub $$104, %rsp");
         #[cfg(not(feature = "interruptsafe"))]
         llvm_asm!("sub $$64, %rsp");
 
@@ -293,7 +325,7 @@ pub extern "C" fn mcount_return_trampoline() {
         #[cfg(feature = "interruptsafe")]
         llvm_asm!(
             "
-            movq %rax, 104(%rsp)
+            movq %rax, 112(%rsp)
         "
         );
 
@@ -341,7 +373,9 @@ pub extern "C" fn mcount_return_trampoline() {
             "
             add $$104, %rsp
         "
-        );
+        ); // here we added same amount back we substracted, since space is in rax push.
+        #[cfg(feature = "interruptsafe")]
+        llvm_asm!("popfq"); // This should also restore the interrupt flag?
     }
 }
 

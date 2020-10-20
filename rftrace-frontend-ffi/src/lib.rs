@@ -57,3 +57,10 @@ pub unsafe extern "C" fn rftrace_dump_trace(events: *mut Events, outfile: *const
     }
     return 0;
 }
+
+
+
+#[no_mangle]
+pub extern "C" fn marker() -> u64 {
+    1337
+}

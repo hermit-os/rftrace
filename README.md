@@ -1,7 +1,7 @@
 <!-- omit in toc -->
 # rftrace - Rust Function Tracer
 
-rftrace is a rust based function tracer. It provides both a backend, which does the actual tracing, and a frontend which write the traces to disk. The backend is designed to standalone and not interact with the system. As such it can be used to fully trace a kernel like [RustyHermit](https://github.com/hermitcore/libhermit-rs) though OS, interrupts, stdlib and application. Multiple threads are supported. It also works for normal Rust and C applications, though better tools exist for that usecase.
+rftrace is a rust based function tracer. It provides both a backend, which does the actual tracing, and a frontend which write the traces to disk. The backend is designed to standalone and not interact with the system. As such it can be used to partially trace a kernel like [RustyHermit](https://github.com/hermitcore/libhermit-rs) though OS, interrupts, stdlib and application. Multiple threads are supported. It also works for normal Rust and C applications, though better tools exist for that usecase.
 
 Requires a recent nightly rust compiler (as of 28-6-2020).
 
@@ -20,6 +20,7 @@ Requires a recent nightly rust compiler (as of 28-6-2020).
     - [Tracing virtiofsd](#tracing-virtiofsd)
   - [tracing kvm events](#tracing-kvm-events)
   - [Merging traces from different sources](#merging-traces-from-different-sources)
+  - [Visualizing the traces](#visualizing-the-traces)
 - [Alternative Tracers](#alternative-tracers)
   - [perf](#perf)
   - [uftrace](#uftrace)
@@ -57,6 +58,9 @@ The function-prologues of the traced application have to be instrumented with `m
 The backend implicitly assumes a System-V ABI. This affects what registers need to be saved and restored on each function entry and exit, and how funciton-exit-hooking is done. If you use a different convention, check if `mcount()` and `mcount_return_trampoline()` handle the correct registers.
 
 For the logging of callsites and function exits, frame pointers are needed, so make sure your compiler does not omit them as an optimization.
+
+For tracing kernel+application in one trace, a single-address-space OS like HermitCore is needed.
+Not all functions can currently be hooked. Naked functions are somewhat broken. Hooking interrupts is broken aswell and will lead to intermittent crashes. Unfortunately, the Rust compiler does have no mechanism to opt-out of `mcount` instrumentation for specific functions, so you have to take care to only enable rftrace in allowed contexts. Currently only runs cleanly if exactly one cpu core is available.
 
 There are no other dependencies required for recording a trace. The output format is the same as the one used by [uftrace](https://github.com/namhyung/uftrace/), so you will need it to view and convert it. There are (currently out-of-date) scripts which can merge traces from multiple different sources in `/tools`, these need `python3`.
 
@@ -183,6 +187,10 @@ sudo trace-cmd record -e 'kvm:*' -C x86-tsc
 
 There is a small [merge.py python script](/tools/merge.py) to merge the traces. See it's help for usage instructions.
 
+An example makefile for gathering events from host+guest, aligning them all and merging them is given in `examples/multi`
+
+### Visualizing the traces
+There is an awesome trace recorder and visualizer called [Tracy](https://github.com/wolfpld/tracy). It provides an [importer](https://github.com/wolfpld/tracy/tree/master/import-chrome/src) for the chromium trace format, so traces merged traces can be visualized there. The converter is pretty memory-inefficient though, so it will not work with large traces. In my testing ~15x trace-file-size memory usage, and ~1min processing time for each 100MB chromium-json-trace file.
 
 ## Alternative Tracers
 A lot of alternatives were considered before writing this crate. Here is a list of options and why they were not chosen.
@@ -299,9 +307,12 @@ You can compile only static lib manually by renaming `rftrace/staticlib/Cargo.no
 
 
 ## Future Work
-- investigate speed penalty caused by the tracing
 - create frontend which can output the trace over network, so no file access is needed
 - there is a '`no_instrument_function`' LLVM attribute, though not exposed by rust codegen. Might be easy to add an attribute here. See [Make it easy to attach LLVM attributes to Rust functions](https://github.com/rust-lang/rust/issues/15180#issuecomment-137569985). This would remove the need for a staticlib, but only in the case where we are compiling for the same target (not the kernel).
+- add option to disable the hooking of returns!
+- fix interrupts
+- fix multicore behavior
+
 
 ## License
 

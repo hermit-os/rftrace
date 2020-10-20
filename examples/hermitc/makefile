@@ -2,7 +2,7 @@
 
 TARGET = x86_64-unknown-hermit
 
-GCC = ../../../toolchain/bin/x86_64-hermit-gcc
+GCC = ../../../toolchain-fsync/bin/x86_64-hermit-gcc
 RUSTY_LOADER = ../../../unmodified/rusty-loader/target/x86_64-unknown-hermit-loader/debug/rusty-loader
 VIRTIOFSD = ../../../qemu-master/build/virtiofsd
 LIBHERMIT_SRC = ../../../libhermit-rs

@@ -17,6 +17,7 @@ rftrace-frontend = "0.1.0"
 [target.'cfg(target_os = "hermit")'.dependencies]
 #hermit-sys = {version="0.1.*", features=["instrument"]}
 hermit-sys = {git="https://github.com/tlambertz/rusty-hermit", branch="instrument-pull", features=["instrument"]}
+#hermit-sys = { path = "../../../rusty-hermit/hermit-sys", default-features = false, features = ["with_submodule", "instrument"] }
 
 [profile.release]
 opt-level = 3
