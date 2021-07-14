@@ -134,16 +134,16 @@ pub fn dump_full_uftrace(
 
     // cmdline
     println!("    cmdline = 'fakeuftrace'");
-    write!(info, "cmdline:fakeuftrace\n")?;
+    writeln!(info, "cmdline:fakeuftrace")?;
     // taskinfo
     println!("    tid = {:?}", tids);
-    write!(info, "taskinfo:lines=2\n")?;
-    write!(info, "taskinfo:nr_tid={}\n", tids.len())?;
+    writeln!(info, "taskinfo:lines=2")?;
+    writeln!(info, "taskinfo:nr_tid={}", tids.len())?;
     write!(info, "taskinfo:tids={}", tids[0])?;
     for tid in &tids[1..] {
         write!(info, ",{}", tid)?;
     }
-    write!(info, "\n")?;
+    writeln!(info)?;
 
     let infofile = format!("{}/info", out_dir);
     let mut infofile = File::create(infofile)?;
@@ -156,13 +156,13 @@ pub fn dump_full_uftrace(
     println!("    pid = {}", pid);
     println!("    sid = {}", sid);
     println!("    exe = {}", binary_name);
-    write!(
+    writeln!(
         taskfile,
-        "SESS timestamp=0.0 pid={} sid={} exename=\"{}\"\n",
+        "SESS timestamp=0.0 pid={} sid={} exename=\"{}\"",
         pid, sid, binary_name
     )?;
     for tid in tids {
-        write!(taskfile, "TASK timestamp=0.0 tid={} pid={}\n", tid, pid)?;
+        writeln!(taskfile, "TASK timestamp=0.0 tid={} pid={}", tid, pid)?;
     }
     drop(taskfile);
 
@@ -180,14 +180,14 @@ pub fn dump_full_uftrace(
     } else {
         println!("  Creating ./sid-{}.map fake memory map file", sid);
 
-        write!(
+        writeln!(
             mapfile,
-            "000000000000-ffffffffffff r-xp 00000000 00:00 0                          {}\n",
+            "000000000000-ffffffffffff r-xp 00000000 00:00 0                          {}",
             binary_name
         )?;
-        write!(
+        writeln!(
             mapfile,
-            "ffffffffffff-ffffffffffff rw-p 00000000 00:00 0                          [stack]\n"
+            "ffffffffffff-ffffffffffff rw-p 00000000 00:00 0                          [stack]"
         )?;
     }
 
