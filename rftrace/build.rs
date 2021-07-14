@@ -94,7 +94,7 @@ fn build_backend() {
     }
 
     // Ensure rustflags does NOT contain instrument-mcount!
-    let rustflags = env::var("RUSTFLAGS").unwrap_or("".into());
+    let rustflags = env::var("RUSTFLAGS").unwrap_or_default();
     if rustflags.contains("mcount") {
         println!("WARNING: RUSTFLAGS contains mcount, trying to remove the key.");
         cmd.env(
