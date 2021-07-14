@@ -44,7 +44,7 @@ pub unsafe extern "C" fn rftrace_dump_full_uftrace(
     {
         return -1;
     }
-    return 0;
+    0
 }
 
 #[no_mangle]
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn rftrace_dump_trace(events: *mut Events, outfile: *const
     if let Err(_) = rftrace_frontend::dump_trace(&mut *events, &outfile) {
         return -1;
     }
-    return 0;
+    0
 }
 
 
