@@ -86,7 +86,7 @@ pub fn dump_full_uftrace(
     // First lets create all traces.
     let tids = dump_traces(events, out_dir, false)?;
 
-    if tids.len() == 0 {
+    if tids.is_empty() {
         println!("Trace is empty!");
         return Ok(());
     }
