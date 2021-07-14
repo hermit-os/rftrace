@@ -58,7 +58,7 @@ pub fn init(max_event_count: usize, overwriting: bool) -> &'static mut Events {
         let (ptr, len, cap) = buf.into_raw_parts();
         rftrace_backend_init(ptr, cap, overwriting);
         // TODO: free this leaked box somewhere. Create a drop() function or similar?
-        return Box::leak(Box::new(Events { ptr, len, cap }));
+        Box::leak(Box::new(Events { ptr, len, cap }))
     }
 }
 

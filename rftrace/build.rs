@@ -43,7 +43,7 @@ fn build_backend() {
             if default == "x86_64-unknown-hermit" {
                 return "x86_64-unknown-none-hermitkernel".to_owned();
             } else {
-                return default;
+                default
             }
         })
     };
