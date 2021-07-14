@@ -24,8 +24,7 @@ pub unsafe extern "C" fn rftrace_disable() {
 #[no_mangle]
 /// Wraps rftrace_frontend::init();
 pub unsafe extern "C" fn rftrace_init(max_event_count: usize, overwriting: bool) -> *mut Events {
-    let events = rftrace_frontend::init(max_event_count, overwriting);
-    events
+    rftrace_frontend::init(max_event_count, overwriting)
 }
 
 #[no_mangle]
