@@ -204,7 +204,7 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
                     events[cidx % events.len()] = Event::Exit(Exit {
                         time: _rdtsc()+20,
                         from: child_ret,
-                        tid: tid,
+                        tid,
                     });
                 }
 
