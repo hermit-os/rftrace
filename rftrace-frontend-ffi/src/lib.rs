@@ -2,8 +2,6 @@
 //! You can find a usage example in the [repository](https://github.com/tlambertz/rftrace/examples/c)
 //! A lot of documentation can be found in the parent workspaces [readme](https://github.com/tlambertz/rftrace).
 
-use rftrace_frontend;
-
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
