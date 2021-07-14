@@ -340,10 +340,8 @@ fn write_event(out: &mut Vec<u8>, time: u64, addr: *const usize, kind: u64) {
         .expect("Write interrupted");
 
     let mut merged: u64 = 0;
-    merged |= (kind & 0b11) << 0; // type = UFTRACE_EXIT / UFTRACE_ENTRY
-    merged |= 0 << 2; // more, always 0
+    merged |= kind & 0b11; // type = UFTRACE_EXIT / UFTRACE_ENTRY
     merged |= 0b101 << 3; // magic, always 0b101
-    merged |= (0 & ((1 << 10) - 1)) << 6; // depth
     merged |= (addr as u64 & ((1 << 48) - 1)) << 16; // actual address, limited to 48 bit.
     out.write_u64::<LittleEndian>(merged)
         .expect("Write interrupted");
