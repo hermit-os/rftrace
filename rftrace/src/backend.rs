@@ -267,8 +267,6 @@ pub extern "C" fn mcount_return_trampoline() {
         #[cfg(feature = "interruptsafe")]
         llvm_asm!("pushfq"); // flags for interrupt stuff
         #[cfg(feature = "interruptsafe")]
-        llvm_asm!("cli"); // dont do interrupts here!
-        #[cfg(feature = "interruptsafe")]
         llvm_asm!("sub $$104, %rsp");
         #[cfg(not(feature = "interruptsafe"))]
         llvm_asm!("sub $$64, %rsp");
