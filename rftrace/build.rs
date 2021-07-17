@@ -41,7 +41,7 @@ fn build_backend() {
             return default;
             #[cfg(feature = "autokernel")]
             if default == "x86_64-unknown-hermit" {
-                return "x86_64-unknown-hermit-kernel".to_owned();
+                return "x86_64-unknown-none-hermitkernel".to_owned();
             } else {
                 return default;
             }
@@ -83,7 +83,7 @@ fn build_backend() {
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());
 
-    // Build core, needed when compiling against a kernel-target, such as x86_64-unknown-hermit-kernel.
+    // Build core, needed when compiling against a kernel-target, such as x86_64-unknown-none-hermitkernel.
     // parent's cargo does NOT expose -Z flags as envvar, we therefore use a feature flag for this
     #[cfg(feature = "buildcore")]
     cmd.args(&["-Z", "build-std=core"]); // should be build std,alloc?
