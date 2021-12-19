@@ -8,16 +8,16 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-#rftrace = {path="../../rftrace", features=["buildcore","autokernel"]}
-rftrace = {version="0.1.0", features=["buildcore","autokernel"]}
-#rftrace-frontend = {path="../../rftrace-frontend"}
-rftrace-frontend = "0.1.0"
+rftrace = {path="../../rftrace", features=["buildcore","autokernel"]}
+#rftrace = {version="0.1.0", features=["buildcore","autokernel"]}
+rftrace-frontend = {path="../../rftrace-frontend"}
+#rftrace-frontend = "0.1.0"
 
 
 [target.'cfg(target_os = "hermit")'.dependencies]
-#hermit-sys = {version="0.1.*", features=["instrument"]}
-hermit-sys = {git="https://github.com/tlambertz/rusty-hermit", branch="instrument-pull", features=["instrument"]}
-#hermit-sys = { path = "../../../rusty-hermit/hermit-sys", default-features = false, features = ["with_submodule", "instrument"] }
+#hermit-sys = {version="0.1.25", features=["instrument"]}
+hermit-sys = {git="https://github.com/tlambertz/rusty-hermit", branch="master", features=["instrument", "with_submodule"]}
+#hermit-sys = { path = "../../../rusty-hermit/hermit-sys", features = ["with_submodule", "instrument"] }
 
 [profile.release]
 opt-level = 3

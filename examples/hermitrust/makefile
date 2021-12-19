@@ -1,8 +1,8 @@
 # You need to provide a compiled rusty-loader and virtiofsd.
 
-RUSTY_LOADER = ../../../unmodified/rusty-loader/target/x86_64-unknown-hermit-loader/debug/rusty-loader
+RUSTY_LOADER = ../../../rusty-hermit/loader/target/x86_64-unknown-hermit-loader/debug/rusty-loader
 BINARY = ../../target/x86_64-unknown-hermit/release/rftrace-hermit-rs-test
-VIRTIOFSD = ../../../qemu-master/build/virtiofsd
+VIRTIOFSD = /usr/lib/qemu/virtiofsd
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 default:
