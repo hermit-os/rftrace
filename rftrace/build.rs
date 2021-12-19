@@ -41,7 +41,7 @@ fn build_backend() {
             return default;
             #[cfg(feature = "autokernel")]
             if default == "x86_64-unknown-hermit" {
-                return "x86_64-unknown-none-hermitkernel".to_owned();
+                "x86_64-unknown-none-hermitkernel".to_owned()
             } else {
                 default
             }

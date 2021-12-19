@@ -335,6 +335,8 @@ fn dump_traces(events: &mut Events, outpath: &str, singlefile: bool) -> io::Resu
         .collect())
 }
 
+#[allow(clippy::identity_op)]
+#[allow(clippy::erasing_op)]
 fn write_event(out: &mut Vec<u8>, time: u64, addr: *const usize, kind: u64) {
     out.write_u64::<LittleEndian>(time)
         .expect("Write interrupted");
