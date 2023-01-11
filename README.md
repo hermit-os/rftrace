@@ -236,6 +236,11 @@ The problem here is that rust does not support 'non-inline modules in proc macro
 
 There is an [old implementation](https://github.com/gsingh93/trace/tree/4622ab5d5141d126dd02f66f89f20fd891e73a9d) of this crate which still uses the compiler plugin interface. Problem: The interal AST is quite unstable and the crates code would need to be adapted often to keep up.
 
+### si_trace_print
+
+[si_trace_print](https://crates.io/crates/si_trace_print) is "stack indented trace printing". It is rust library that requires macro statements to print messages. The messages are indented to stack depth and may be optionally preceded by the function name.
+
+The aim of `si_trace_print` is to be a simple "entry-level" tracing library to aid developers manually reviewing singular program runs.
 
 ### hawktracer-rust:
 [hawktracer-rust](https://www.hawktracer.org/) ([GitHub](https://github.com/AlexEne/rust_hawktracer)) provides rust-bindings for Amazons hawktracer. This requires annotating your code with tracepoints, but looks like a nice solution if that is what you want.
