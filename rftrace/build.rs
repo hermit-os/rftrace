@@ -50,8 +50,6 @@ fn build_backend() {
     println!("Compiling for target {}", target);
 
     let mut cmd = Command::new("cargo");
-    // We use nightly features, so always enable it
-    cmd.arg("+nightly");
     cmd.arg("build");
 
     // Compile for the same target as the parent-lib
