@@ -24,7 +24,7 @@ buildcore = [] # Build core, needed when compiling against a kernel-target, such
 autokernel = [] # convenience flag, which specifies compilation target as `x86_64-unknown-none-hermitkernel` when orignal target is `x86_64-unknown-hermit`
 interruptsafe = [] # backup and restore all scratch registers in the mcount_return trampoline. Needed if we instrument interrupt routines
 
-default = ['interruptsafe']
+default = []
 
 [lib]
 crate-type = ['staticlib', 'rlib']
