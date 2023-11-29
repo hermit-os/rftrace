@@ -50,7 +50,7 @@ fn build_backend() {
     };
     println!("Compiling for target {}", target);
 
-    let mut cmd = Command::new("cargo");
+    let mut cmd = cargo();
     cmd.arg("build");
 
     // Compile for the same target as the parent-lib
@@ -138,6 +138,34 @@ fn build_backend() {
 
 fn main() {
     build_backend();
+}
+
+/// Returns the Rustup proxy for Cargo.
+// Adapted from Hermit.
+fn cargo() -> Command {
+    let cargo = {
+        // On windows, the userspace toolchain ends up in front of the rustup proxy in $PATH.
+        // To reach the rustup proxy nonetheless, we explicitly query $CARGO_HOME.
+        let mut cargo_home = PathBuf::from(env::var_os("CARGO_HOME").unwrap());
+        cargo_home.push("bin/cargo");
+        if cargo_home.exists() {
+            cargo_home
+        } else {
+            PathBuf::from("cargo")
+        }
+    };
+
+    let mut cargo = Command::new(cargo);
+
+    // Remove rust-toolchain-specific environment variables from kernel cargo
+    cargo.env_remove("LD_LIBRARY_PATH");
+    env::vars()
+        .filter(|(key, _value)| key.starts_with("CARGO") || key.starts_with("RUST"))
+        .for_each(|(key, _value)| {
+            cargo.env_remove(&key);
+        });
+
+    cargo
 }
 
 /// Makes all internal symbols private to avoid duplicated symbols.
