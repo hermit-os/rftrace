@@ -37,8 +37,7 @@ pub unsafe extern "C" fn rftrace_dump_full_uftrace(
     let binary_name = CStr::from_ptr(binary_name).to_string_lossy().into_owned();
     let linux = linux_mode != 0;
 
-    if rftrace_frontend::dump_full_uftrace(&mut *events, &out_dir, &binary_name, linux).is_err()
-    {
+    if rftrace_frontend::dump_full_uftrace(&mut *events, &out_dir, &binary_name, linux).is_err() {
         return -1;
     }
     0
@@ -54,8 +53,6 @@ pub unsafe extern "C" fn rftrace_dump_trace(events: *mut Events, outfile: *const
     }
     0
 }
-
-
 
 #[no_mangle]
 pub extern "C" fn marker() -> u64 {

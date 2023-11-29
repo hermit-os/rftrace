@@ -164,7 +164,7 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
             // This means parent_ret (which is lea 8(%rbp)), will be 8 and we will crash on access.
             // Other OS's likely do something similar. Don't deref in that case!
             let (hook_return, parent_ret_deref) = if parent_ret as usize <= 0x100 {
-                (false, 0xD3ADB33F as *const usize)
+                (false, 0xd3adb33f as *const usize)
             } else {
                 (true, *parent_ret)
             };
@@ -187,7 +187,9 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
             }
 
             // TODO: clean up this hack! we check if we are in mcount, or mcount_entry, mcount_return_tampoline or mcount_return
-            if parent_ret_deref >= (mcount as *const usize) && parent_ret_deref <= (rftrace_backend_get_events_index as *const usize) {
+            if parent_ret_deref >= (mcount as *const usize)
+                && parent_ret_deref <= (rftrace_backend_get_events_index as *const usize)
+            {
                 /*unsafe {
                     *(0 as *mut u8) = 0;
                 }
@@ -202,12 +204,11 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
                     }
 
                     events[cidx % events.len()] = Event::Exit(Exit {
-                        time: _rdtsc()+20,
+                        time: _rdtsc() + 20,
                         from: child_ret,
                         tid,
                     });
                 }
-
 
                 return;
             }

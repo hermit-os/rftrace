@@ -1,7 +1,10 @@
-use crate::interface::*;
-use byteorder::{LittleEndian, WriteBytesExt};
 use std::fs::File;
-use std::io::{self, prelude::*};
+use std::io::prelude::*;
+use std::io::{self};
+
+use byteorder::{LittleEndian, WriteBytesExt};
+
+use crate::interface::*;
 
 extern "C" {
     fn rftrace_backend_enable();

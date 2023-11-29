@@ -7,7 +7,6 @@ extern crate hermit_sys;
 use std::thread;
 use std::time::SystemTime;
 
-
 fn main() {
     let events = rftrace::init(100000, false);
 
