@@ -1,5 +1,5 @@
 default: out/debug/librftrace.a out/debug/librftrace_frontend_ffi.a
-	gcc main.c -p -pthread -ldl -lrftrace -lrftrace_frontend_ffi -Lout/debug/ -o test
+	gcc main.c -p -pthread -ldl -lrftrace -lrftrace_frontend_ffi -Lout/debug/ -o test -fuse-ld=lld
 
 out/debug/librftrace.a:
 	cargo build --manifest-path ../../rftrace/Cargo.toml --target-dir out

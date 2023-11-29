@@ -16,7 +16,7 @@ jobs:
       - name: Install uftrace
         run: |
           sudo apt-get update
-          sudo apt-get install uftrace
+          sudo apt-get install lld uftrace
       - uses: mkroening/rust-toolchain-toml@main
       - uses: Swatinem/rust-cache@v2
       - name: Build
@@ -41,11 +41,11 @@ jobs:
       - name: Install uftrace
         run: |
           sudo apt-get update
-          sudo apt-get install uftrace
+          sudo apt-get install lld uftrace
       - uses: mkroening/rust-toolchain-toml@main
       - uses: Swatinem/rust-cache@v2
       - name: Build
-        run: cargo rustc -- -Zinstrument-mcount -C passes="ee-instrument post-inline-ee-instrument"
+        run: cargo rustc -- -Zinstrument-mcount -C passes="ee-instrument post-inline-ee-instrument" -C link-arg=-fuse-ld=lld
       - name: Run
         run: |
           mkdir tracedir
