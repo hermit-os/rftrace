@@ -130,7 +130,7 @@ For RustyHermit there is a workaround with the `autokernel` feature, which can e
 
 Other backend features which might be of interest are:
 - `buildcore` - needed for no-std targets. Will build the core library when building the backend.
-- `interruptsafe` - enabled by default. Will safe and restore more registers on function exits, to ensure interrupts do not clobber them. Probably only needed when interrupts are instrumented. Can be disabled for performance reasons.
+- `interruptsafe` - will safe and restore more registers on function exits, to ensure interrupts do not clobber them. Probably only needed when interrupts are instrumented. Can be disabled for performance reasons.
 
 
 ### Output Format
