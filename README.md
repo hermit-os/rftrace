@@ -129,7 +129,6 @@ Unfortunately, there is no way to communicate a fixed, different compilation-tar
 For RustyHermit there is a workaround with the `autokernel` feature, which can easily be extended to other targets. Outside of this, you can also set a custom target by setting the environment variable `RFTRACE_TARGET_TRIPLE` to your wanted triple.
 
 Other backend features which might be of interest are:
-- `buildcore` - needed for no-std targets. Will build the core library when building the backend.
 - `interruptsafe` - will safe and restore more registers on function exits, to ensure interrupts do not clobber them. Probably only needed when interrupts are instrumented. Can be disabled for performance reasons.
 
 

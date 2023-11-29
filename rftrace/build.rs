@@ -81,10 +81,10 @@ fn build_backend() {
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());
 
-    // Build core, needed when compiling against a kernel-target, such as x86_64-unknown-none-hermitkernel.
-    // parent's cargo does NOT expose -Z flags as envvar, we therefore use a feature flag for this
-    #[cfg(feature = "buildcore")]
-    cmd.args(&["-Z", "build-std=core"]); // should be build std,alloc?
+    cmd.args(&[
+        "-Zbuild-std=core",
+        "-Zbuild-std-features=compiler-builtins-mem",
+    ]);
 
     // Compile staticlib as release if included in release build.
     if profile == "release" {
