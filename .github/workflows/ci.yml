@@ -43,9 +43,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install lld uftrace
       - uses: mkroening/rust-toolchain-toml@main
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2023-11-01
+          components: llvm-tools
       - uses: Swatinem/rust-cache@v2
       - name: Build
-        run: cargo rustc -- -Zinstrument-mcount -C passes="ee-instrument post-inline-ee-instrument" -C link-arg=-fuse-ld=lld
+        run: cargo +nightly-2023-11-01 rustc -- -Zinstrument-mcount -C passes="ee-instrument<post-inline>" -C link-arg=-fuse-ld=lld
       - name: Run
         run: |
           mkdir tracedir

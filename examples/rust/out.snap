@@ -1,11 +1,11 @@
 #   TID     FUNCTION
- [     1] | core::fmt::Arguments::new_v1();
+ [     1] | core::fmt::Arguments::new_const();
  [     1] | rftrace_rs_test::test1() {
- [     1] |   core::fmt::Arguments::new_v1();
+ [     1] |   core::fmt::Arguments::new_const();
  [     1] |   rftrace_rs_test::test2() {
- [     1] |     core::fmt::Arguments::new_v1();
+ [     1] |     core::fmt::Arguments::new_const();
  [     1] |     rftrace_rs_test::test3() {
- [     1] |       core::fmt::Arguments::new_v1();
+ [     1] |       core::fmt::Arguments::new_const();
  [     1] |     } /* rftrace_rs_test::test3 */
  [     1] |   } /* rftrace_rs_test::test2 */
  [     1] | } /* rftrace_rs_test::test1 */
