@@ -29,7 +29,6 @@ crate-type = ['staticlib', 'rlib']
 
 [build-dependencies]
 llvm-tools = "0.1"
-log = "=0.4.18" # TODO: `log v0.4.19 requires rustc 1.60.0 or newer
 
 #[profile.dev]
 #panic = "abort"

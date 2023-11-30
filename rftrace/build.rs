@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::env;
 use std::fs::{self, File};
 use std::io::prelude::*;
@@ -99,14 +100,14 @@ fn build_backend() {
 
     retain_symbols(
         Path::new(&format!("{}/librftrace_backend.a", &dist_dir)),
-        &[
+        HashSet::from([
             "mcount",
             "rftrace_backend_disable",
             "rftrace_backend_enable",
             "rftrace_backend_get_events",
             "rftrace_backend_get_events_index",
             "rftrace_backend_init",
-        ],
+        ]),
     );
 
     // Link parent-lib against this staticlib
@@ -157,27 +158,43 @@ fn cargo() -> Command {
 /// This is important when combining different versions of `core`.
 /// Newer versions of `rustc` will throw an error on duplicated symbols.
 // Adapted from Hermit.
-pub fn retain_symbols(archive: &Path, symbols: &[&str]) {
+pub fn retain_symbols(archive: &Path, mut exported_symbols: HashSet<&str>) {
     use std::fmt::Write;
 
     let prefix = "rftrace";
 
-    let symbol_renames = symbols.iter().fold(String::new(), |mut output, symbol| {
-        let _ = writeln!(output, "{prefix}_{symbol} {symbol}");
-        output
-    });
+    let all_symbols = {
+        let objcopy = binutil("nm").unwrap();
+        let output = Command::new(&objcopy)
+            .arg("--export-symbols")
+            .arg(archive)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        String::from_utf8(output.stdout).unwrap()
+    };
+
+    let symbol_renames = all_symbols
+        .lines()
+        .fold(String::new(), |mut output, symbol| {
+            if exported_symbols.remove(symbol) {
+                return output;
+            }
+
+            if let Some(symbol) = symbol.strip_prefix("_ZN") {
+                let prefix_len = prefix.len();
+                let _ = writeln!(output, "_ZN{symbol} _ZN{prefix_len}{prefix}{symbol}",);
+            } else {
+                let _ = writeln!(output, "{symbol} {prefix}_{symbol}");
+            }
+            output
+        });
+    assert!(exported_symbols.is_empty());
 
     let rename_path = archive.with_extension("redefine_syms");
     fs::write(&rename_path, symbol_renames).unwrap();
 
     let objcopy = binutil("objcopy").unwrap();
-    let status = Command::new(&objcopy)
-        .arg("--prefix-symbols")
-        .arg(format!("{prefix}_"))
-        .arg(archive)
-        .status()
-        .unwrap();
-    assert!(status.success());
     let status = Command::new(&objcopy)
         .arg("--redefine-syms")
         .arg(&rename_path)
