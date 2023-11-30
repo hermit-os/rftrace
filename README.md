@@ -124,11 +124,7 @@ rftrace = "0.1"
 ```
 
 #### Any other kernel
-Unfortunately, there is no way to communicate a fixed, different compilation-target to the backend. There is an open cargo issue for allowing arbitrary environment variables to be set: [Passing environment variables from down-stream to up-stream library](https://github.com/rust-lang/cargo/issues/4121)
-
-For RustyHermit there is a workaround with the `autokernel` feature, which can easily be extended to other targets. Outside of this, you can also set a custom target by setting the environment variable `RFTRACE_TARGET_TRIPLE` to your wanted triple.
-
-Other backend features which might be of interest are:
+Backend features which might be of interest are:
 - `interruptsafe` - will safe and restore more registers on function exits, to ensure interrupts do not clobber them. Probably only needed when interrupts are instrumented. Can be disabled for performance reasons.
 
 

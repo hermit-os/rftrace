@@ -32,29 +32,12 @@ fn build_backend() {
     let full_target_dir = format!("{}/target_static", out_dir);
     let profile = env::var("PROFILE").expect("PROFILE was not set");
 
-    // Set the target. Can be overwritten via env-var.
-    // If feature autokernel is enabled, automatically 'convert' hermit to hermit-kernel target.
-    let target = {
-        println!("cargo:rerun-if-env-changed=RFTRACE_TARGET_TRIPLE");
-        env::var("RFTRACE_TARGET_TRIPLE").unwrap_or_else(|_| {
-            let default = env::var("TARGET").unwrap();
-            #[cfg(not(feature = "autokernel"))]
-            return default;
-            #[cfg(feature = "autokernel")]
-            if default == "x86_64-unknown-hermit" {
-                "x86_64-unknown-none-hermitkernel".to_owned()
-            } else {
-                default
-            }
-        })
-    };
-    println!("Compiling for target {}", target);
+    let target = "x86_64-unknown-none";
 
     let mut cmd = cargo();
     cmd.arg("build");
 
-    // Compile for the same target as the parent-lib
-    cmd.args(&["--target", &target]);
+    cmd.args(&["--target", target]);
 
     // Output all build artifacts in output dir of parent-lib
     cmd.args(&["--target-dir", &full_target_dir]);

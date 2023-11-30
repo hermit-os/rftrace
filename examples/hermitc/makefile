@@ -24,7 +24,7 @@ $(HERMIT_PATH)/libhermit.a:
 	RUSTFLAGS=$(RUST_FLAGS) cargo build --manifest-path $(LIBHERMIT_SRC)/Cargo.toml -Z build-std=core,alloc --target $(TARGET)-kernel --features newlib  --release --target-dir out
 
 $(LIBRARY_PATH)/librftrace.a:
-	cargo build --manifest-path ../../rftrace/Cargo.toml --target $(TARGET) --features autokernel --target-dir out -Z build-std=std,panic_abort
+	cargo build --manifest-path ../../rftrace/Cargo.toml --target $(TARGET) --target-dir out -Z build-std=std,panic_abort
 
 $(LIBRARY_PATH)/librftrace_frontend_ffi.a:
 	RUSTFLAGS=$(RUST_FLAGS) cargo build --manifest-path ../../rftrace-frontend-ffi/Cargo.toml --target $(TARGET) --target-dir out -Z build-std=std,panic_abort
