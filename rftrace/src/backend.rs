@@ -19,7 +19,7 @@ struct SavedRet {
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static OVERWRITING: AtomicBool = AtomicBool::new(false); // should the ring-buffer be overwritten once full?
-static mut INDEX: AtomicUsize = AtomicUsize::new(0);
+static INDEX: AtomicUsize = AtomicUsize::new(0);
 static mut EVENTS: Option<&mut [Event]> = None;
 
 // !! Will always be initialized to all 0 by the OS, no matter what. This is just to make the compiler happy
@@ -424,7 +424,7 @@ fn set_eventbuf(eventbuf: &'static mut [Event]) {
 
 #[no_mangle]
 pub extern "C" fn rftrace_backend_get_events_index() -> usize {
-    return unsafe { INDEX.load(Ordering::Relaxed) };
+    return INDEX.load(Ordering::Relaxed);
 }
 
 #[no_mangle]
