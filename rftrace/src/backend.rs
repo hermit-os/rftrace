@@ -17,6 +17,7 @@ struct SavedRet {
     pub childip: *const usize,
 }
 
+#[no_mangle]
 static ENABLED: AtomicBool = AtomicBool::new(false);
 static OVERWRITING: AtomicBool = AtomicBool::new(false); // should the ring-buffer be overwritten once full?
 static INDEX: AtomicUsize = AtomicUsize::new(0);
@@ -89,10 +90,16 @@ pub extern "C" fn mcount() {
 
     // based on https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
     unsafe {
-        if !ENABLED.load(Ordering::Relaxed) {
-            return;
-        }
         llvm_asm!("
+        // if ENABLED.load(Ordering::Relaxed) {
+        //     return;
+        // }
+        push %rax
+        movq ENABLED@GOTPCREL(%rip), %rax
+        movzbl (%rax), %eax
+        testb %al, %al
+        je 2f
+
         /* make some space for locals on the stack */
         sub $$48, %rsp
 
@@ -105,7 +112,7 @@ pub extern "C" fn mcount() {
         movq %r9,   0(%rsp)
 
         /* child addr = what function was mcount() called from */
-        movq 48(%rsp), %rsi
+        movq 56(%rsp), %rsi
 
         /* parent location = child-return-addr-ptr = what addr stores the location the child function was called from */
         /* needed, since we overwrite it with our own trampoline. This way we can determine when the child function returns */
@@ -119,13 +126,7 @@ pub extern "C" fn mcount() {
         /* pass mcount_args to mcount_entry's 3rd argument */
         push %rdx
 
-        /* save rax (implicit argument for variadic functions) */
-        push %rax
-
         call mcount_entry
-
-        /* restore rax */
-        pop  %rax
 
         /* restore original stack pointer */
         pop  %rdx
@@ -141,6 +142,9 @@ pub extern "C" fn mcount() {
 
         /* revert stack pointer to original location and return */
         add $$48, %rsp
+
+        2:
+        pop %rax
         retq
         ");
     }
@@ -196,7 +200,9 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
                 // Maybe insert fake end, so uftrace is not confused and crashes because its internal function stack overflows.
                 if let Some(events) = &mut EVENTS {
                     let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
-                    if !OVERWRITING.load(Ordering::Relaxed) && cidx >= events.len() - MAX_STACK_HEIGHT {
+                    if !OVERWRITING.load(Ordering::Relaxed)
+                        && cidx >= events.len() - MAX_STACK_HEIGHT
+                    {
                         disable();
                         return;
                     }
