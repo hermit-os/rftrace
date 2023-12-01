@@ -1,6 +1,6 @@
 use core::arch::x86_64::_rdtsc;
 use core::slice;
-use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use crate::interface::*;
 
@@ -17,7 +17,7 @@ struct SavedRet {
     pub childip: *const usize,
 }
 
-static mut ENABLED: bool = false;
+static ENABLED: AtomicBool = AtomicBool::new(false);
 static mut OVERWRITING: bool = false; // should the ring-buffer be overwritten once full?
 static mut INDEX: AtomicUsize = AtomicUsize::new(0);
 static mut EVENTS: Option<&mut [Event]> = None;
@@ -89,7 +89,7 @@ pub extern "C" fn mcount() {
 
     // based on https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
     unsafe {
-        if !ENABLED {
+        if !ENABLED.load(Ordering::Relaxed) {
             return;
         }
         llvm_asm!("
@@ -149,7 +149,7 @@ pub extern "C" fn mcount() {
 #[no_mangle]
 pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const usize) {
     unsafe {
-        if ENABLED {
+        if ENABLED.load(Ordering::Relaxed) {
             let tid = match TID {
                 None => {
                     // We are not yet initialized, do it now
@@ -402,16 +402,11 @@ pub extern "C" fn mcount_return() -> *const usize {
 }
 
 fn disable() {
-    unsafe {
-        ENABLED = false;
-    }
+    ENABLED.store(false, Ordering::Relaxed);
 }
 
 fn enable() {
-    //println!("enabling mcount hooks..");
-    unsafe {
-        ENABLED = true;
-    }
+    ENABLED.store(true, Ordering::Relaxed);
 }
 
 fn set_eventbuf(eventbuf: &'static mut [Event]) {
