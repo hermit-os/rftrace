@@ -73,7 +73,7 @@ impl RetStack {
 
 #[naked]
 #[no_mangle]
-pub extern "C" fn mcount() {
+pub unsafe extern "C" fn mcount() {
     // We need to be careful with hooked naked functions!
     // Normally, llvm ensures that all needed functions parameters are saved before the embedded mcount() is called, and restored afterwards.
     // This does NOT happen with naked funktions like `hermit::arch::x86_64::kernel::switch::switch:`
@@ -86,65 +86,53 @@ pub extern "C" fn mcount() {
     // mcounts ret addr is directly at rsp
 
     // based on https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
-    unsafe {
-        llvm_asm!("
+    asm!(
         // if ENABLED.load(Ordering::Relaxed) {
         //     return;
         // }
-        push %rax
-        movq ENABLED@GOTPCREL(%rip), %rax
-        movzbl (%rax), %eax
-        testb %al, %al
-        je 2f
-
-        /* make some space for locals on the stack */
-        sub $$48, %rsp
-
-        /* save register arguments in mcount_args. Needed so we can later restore them */
-        movq %rdi, 40(%rsp)
-        movq %rsi, 32(%rsp)
-        movq %rdx, 24(%rsp)
-        movq %rcx, 16(%rsp)
-        movq %r8,   8(%rsp)
-        movq %r9,   0(%rsp)
-
-        /* child addr = what function was mcount() called from */
-        movq 56(%rsp), %rsi
-
-        /* parent location = child-return-addr-ptr = what addr stores the location the child function was called from */
-        /* needed, since we overwrite it with our own trampoline. This way we can determine when the child function returns */
-        lea 8(%rbp), %rdi
-
-
-        /* align stack pointer to 16-byte, remember old value */
-        movq %rsp, %rdx
-        andq $$0xfffffffffffffff0, %rsp
-
-        /* pass mcount_args to mcount_entry's 3rd argument */
-        push %rdx
-
-        call mcount_entry
-
-        /* restore original stack pointer */
-        pop  %rdx
-        movq %rdx, %rsp
-
-        /* restore mcount_args */
-        movq  0(%rsp), %r9
-        movq  8(%rsp), %r8
-        movq 16(%rsp), %rcx
-        movq 24(%rsp), %rdx
-        movq 32(%rsp), %rsi
-        movq 40(%rsp), %rdi
-
-        /* revert stack pointer to original location and return */
-        add $$48, %rsp
-
-        2:
-        pop %rax
-        retq
-        ");
-    }
+        "push rax",
+        "mov rax, [rip + ENABLED@GOTPCREL]",
+        "movzx eax, byte ptr [rax]",
+        "test al, al",
+        "je 2f",
+        // make some space for locals on the stack
+        "sub rsp, 48",
+        // save register arguments in mcount_args. Needed so we can later restore them
+        "mov [rsp + 40], rdi",
+        "mov [rsp + 32], rsi",
+        "mov [rsp + 24], rdx",
+        "mov [rsp + 16], rcx",
+        "mov [rsp + 8], r8",
+        "mov [rsp], r9",
+        // child addr = what function was mcount() called from
+        "mov rsi, [rsp + 56]",
+        // parent location = child-return-addr-ptr = what addr stores the location the child function was called from
+        // needed, since we overwrite it with our own trampoline. This way we can determine when the child function returns
+        "lea rdi, [rbp + 8]",
+        // align stack pointer to 16-byte, remember old value
+        "mov rdx, rsp",
+        "and rsp, -16",
+        // pass mcount_args to mcount_entry's 3rd argument
+        "push rdx",
+        "call mcount_entry",
+        // restore original stack pointer
+        "pop rdx",
+        "mov rsp, rdx",
+        // restore mcount_args
+        "mov r9, [rsp]",
+        "mov r8, [rsp + 8]",
+        "mov rcx, [rsp + 16]",
+        "mov rdx, [rsp + 24]",
+        "mov rsi, [rsp + 32]",
+        "mov rdi, [rsp + 40]",
+        // revert stack pointer to original location and return
+        "add rsp, 48",
+        "2:",
+        "pop rax",
+        "ret",
+        // TODO: ENABLED = sym ENABLED,
+        options(noreturn),
+    );
 }
 
 #[no_mangle]
