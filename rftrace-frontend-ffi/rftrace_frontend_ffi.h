@@ -19,8 +19,7 @@ void rftrace_disable(void);
 
 int64_t rftrace_dump_full_uftrace(Events *events,
                                   const char *out_dir,
-                                  const char *binary_name,
-                                  uint64_t linux_mode);
+                                  const char *binary_name);
 
 int64_t rftrace_dump_trace(Events *events, const char *outfile);
 

@@ -31,13 +31,11 @@ pub unsafe extern "C" fn rftrace_dump_full_uftrace(
     events: *mut Events,
     out_dir: *const c_char,
     binary_name: *const c_char,
-    linux_mode: u64,
 ) -> i64 {
     let out_dir = CStr::from_ptr(out_dir).to_string_lossy().into_owned();
     let binary_name = CStr::from_ptr(binary_name).to_string_lossy().into_owned();
-    let linux = linux_mode != 0;
 
-    if rftrace_frontend::dump_full_uftrace(&mut *events, &out_dir, &binary_name, linux).is_err() {
+    if rftrace_frontend::dump_full_uftrace(&mut *events, &out_dir, &binary_name).is_err() {
         return -1;
     }
     0

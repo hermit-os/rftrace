@@ -74,14 +74,8 @@ pub fn init(max_event_count: usize, overwriting: bool) -> &'static mut Events {
 /// * `events` - Events buffer to write, returned by `init()`
 /// * `out_dir` - folder into which the resulting trace is dumped. Has to exist.
 /// * `binary_name` - only relevant for this symbol file. Generated metadata instructs uftrace where to look for it.
-/// * `linux` - if true, don't fake the memory map, copy it from /proc/self/maps.
 ///
-pub fn dump_full_uftrace(
-    events: &mut Events,
-    out_dir: &str,
-    binary_name: &str,
-    linux: bool,
-) -> io::Result<()> {
+pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) -> io::Result<()> {
     // arbitrary values for pid and sid
     let pid = 42;
     let sid = "00";
@@ -171,7 +165,7 @@ pub fn dump_full_uftrace(
 
     let mapfilename = format!("{}/sid-{}.map", out_dir, sid);
     let mut mapfile = File::create(mapfilename)?;
-    if linux {
+    if cfg!(target_os = "linux") {
         // see uftrace's record_proc_maps(..)
         // TODO: implement section-merging
         println!(
@@ -194,7 +188,7 @@ pub fn dump_full_uftrace(
         )?;
     }
 
-    if linux {
+    if cfg!(target_os = "linux") {
         println!(
             "\nYou should generate symbols with `nm -n $BINARY > {}/$BINARY.sym`",
             out_dir
