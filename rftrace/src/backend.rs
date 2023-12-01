@@ -18,7 +18,7 @@ struct SavedRet {
 }
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
-static mut OVERWRITING: bool = false; // should the ring-buffer be overwritten once full?
+static OVERWRITING: AtomicBool = AtomicBool::new(false); // should the ring-buffer be overwritten once full?
 static mut INDEX: AtomicUsize = AtomicUsize::new(0);
 static mut EVENTS: Option<&mut [Event]> = None;
 
@@ -173,7 +173,7 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
             if let Some(events) = &mut EVENTS {
                 // Get current globally-unique-event-index
                 let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
-                if !OVERWRITING && cidx >= events.len() - MAX_STACK_HEIGHT {
+                if !OVERWRITING.load(Ordering::Relaxed) && cidx >= events.len() - MAX_STACK_HEIGHT {
                     disable();
                     return;
                 }
@@ -196,7 +196,7 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
                 // Maybe insert fake end, so uftrace is not confused and crashes because its internal function stack overflows.
                 if let Some(events) = &mut EVENTS {
                     let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
-                    if !OVERWRITING && cidx >= events.len() - MAX_STACK_HEIGHT {
+                    if !OVERWRITING.load(Ordering::Relaxed) && cidx >= events.len() - MAX_STACK_HEIGHT {
                         disable();
                         return;
                     }
@@ -459,9 +459,7 @@ pub extern "C" fn rftrace_backend_init(bufptr: *mut Event, len: usize, overwriti
         "Event buffer has to be larger than maximum stack height!"
     );
 
-    unsafe {
-        OVERWRITING = overwriting;
-    }
+    OVERWRITING.store(overwriting, Ordering::Relaxed);
 
     set_eventbuf(eventbuf);
 }
