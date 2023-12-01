@@ -5,7 +5,6 @@
 #![cfg_attr(feature = "staticlib", feature(naked_functions))]
 #![cfg_attr(feature = "staticlib", feature(llvm_asm))]
 #![cfg_attr(feature = "staticlib", feature(thread_local))]
-#![cfg_attr(feature = "staticlib", feature(linkage))]
 #![cfg_attr(feature = "staticlib", no_std)]
 
 mod interface;

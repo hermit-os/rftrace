@@ -39,11 +39,8 @@ static mut TID: Option<core::num::NonZeroU64> = None;
 // Everytime we see a new thread (with emtpy thread-locals), we alloc out own TID
 static mut TID_NEXT: AtomicU64 = AtomicU64::new(1);
 
-// Need to define own panic handler, since we are no_std
-use core::panic::PanicInfo;
-#[linkage = "weak"]
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
