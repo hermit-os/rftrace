@@ -1,30 +1,8 @@
 use std::collections::HashSet;
 use std::env;
-use std::fs::{self, File};
-use std::io::prelude::*;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-
-fn prepare_staticlib_toml(out_dir: &str) -> std::io::Result<String> {
-    let manifest = format!("{}/staticlib/Cargo.toml", out_dir);
-    fs::create_dir_all(format!("{}/staticlib", out_dir))
-        .expect("Could not create directory for staticlib");
-    let toml = fs::read_to_string("staticlib/Cargo.nottoml")?;
-
-    // Adapt path
-    let mut lib = env::current_dir()?;
-    lib.push("src");
-    lib.push("lib.rs");
-    let toml = toml.replace(
-        "../src/lib.rs",
-        lib.to_str().expect("Invalid staticlib path"),
-    );
-
-    let mut toml_out = File::create(&manifest)?;
-    toml_out.write_all(toml.as_bytes())?;
-    //fs::copy("", format!("{}/staticlib/Cargo.toml", out_dir)).expect("Could not copy staticlib Cargo.toml");
-    Ok(manifest)
-}
 
 fn build_backend() {
     println!("Building Backend!");
@@ -35,18 +13,12 @@ fn build_backend() {
     let target = "x86_64-unknown-none";
 
     let mut cmd = cargo();
-    cmd.arg("build");
+    cmd.arg("rustc");
 
     cmd.args(&["--target", target]);
 
     // Output all build artifacts in output dir of parent-lib
     cmd.args(&["--target-dir", &full_target_dir]);
-
-    // Use custom manifest, which defines that this compilation is a staticlib
-    // crates.io allows only one Cargo.toml per package, so copy here
-    let manifest =
-        prepare_staticlib_toml(&out_dir).expect("Could not prepare staticlib toml file!");
-    cmd.args(&["--manifest-path", &manifest]);
 
     // Enable the staticlib feature, so we can do #[cfg(feature='staticlib')] gate our code
     // Pass-through interruptsafe and reexportsymbols features
@@ -72,6 +44,10 @@ fn build_backend() {
 
     cmd.arg("--release");
 
+    cmd.arg("--");
+
+    cmd.arg("-Cpanic=abort");
+
     // Ensure rustflags does NOT contain instrument-mcount!
     let rustflags = env::var("RUSTFLAGS").unwrap_or_default();
     if rustflags.contains("mcount") {
@@ -95,7 +71,7 @@ fn build_backend() {
     let dist_dir = format!("{}/{}/release", &full_target_dir, &target);
 
     retain_symbols(
-        Path::new(&format!("{}/librftrace_backend.a", &dist_dir)),
+        Path::new(&format!("{}/librftrace.a", &dist_dir)),
         HashSet::from([
             "mcount",
             "rftrace_backend_disable",
@@ -108,15 +84,19 @@ fn build_backend() {
 
     // Link parent-lib against this staticlib
     println!("cargo:rustc-link-search=native={}", &dist_dir);
-    println!("cargo:rustc-link-lib=static=rftrace_backend");
+    println!("cargo:rustc-link-lib=static=rftrace");
 
-    println!("cargo:rerun-if-changed=staticlib/Cargo.toml");
+    println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=src/backend.rs");
     println!("cargo:rerun-if-changed=src/interface.rs");
     println!("cargo:rerun-if-changed=src/lib.rs");
 }
 
 fn main() {
+    if env::var_os("CARGO_FEATURE_STATICLIB").is_some() {
+        return;
+    }
+    
     build_backend();
 }
 
