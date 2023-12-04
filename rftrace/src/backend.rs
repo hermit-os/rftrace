@@ -382,6 +382,7 @@ pub extern "C" fn mcount_return_trampoline() {
         ); // here we added same amount back we substracted, since space is in rax push.
         #[cfg(feature = "interruptsafe")]
         llvm_asm!("popfq"); // This should also restore the interrupt flag?
+        llvm_asm!("ret");
     }
 }
 
