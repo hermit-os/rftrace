@@ -221,8 +221,149 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
     }
 }
 
+#[cfg(feature = "interruptsafe")]
+macro_rules! prologue {
+    () => {
+        r#"
+        // space for locals (saved ret values) (if we dont back up xmm0+1, this is too much, but this won't hurt us)
+        // fake return value for later
+        push rax
+        // flags for interrupt stuff
+        pushfq
+        // dont do interrupts here!
+        cli
+        sub rsp, 104
+        "#
+    };
+}
+
+#[cfg(not(feature = "interruptsafe"))]
+macro_rules! prologue {
+    () => {
+        "sub rsp, 64"
+    };
+}
+
+#[cfg(target_feature = "sse2")]
+macro_rules! backup_sse2 {
+    () => {
+        r#"
+        // when we compile against a 'kernel' target we do NOT have sse enabled, otherwise we might. Backup xmm0 and xmm1
+        // even if we are in userspace code that could use sse2, we are guaranteed that mcount_return() will not clobber it in this case
+        movdqu xmmword ptr [rsp + 16], xmm0
+        movdqu xmmword ptr [rsp + 32], xmm1
+        "#
+    };
+}
+
+#[cfg(not(target_feature = "sse2"))]
+macro_rules! backup_sse2 {
+    () => {
+        ""
+    };
+}
+
+#[cfg(feature = "interruptsafe")]
+macro_rules! backup_interrupts {
+    () => {
+        r#"
+        // If we have to be interrupt safe, also backup non-return scratch registers
+        mov [rsp + 48], rdi
+        mov [rsp + 56], rsi
+        mov [rsp + 64], rcx
+        mov [rsp + 72], r8
+        mov [rsp + 80], r9
+        mov [rsp + 88], r10
+        mov [rsp + 96], r11
+        "#
+    };
+}
+
+#[cfg(not(feature = "interruptsafe"))]
+macro_rules! backup_interrupts {
+    () => {
+        ""
+    };
+}
+
+#[cfg(feature = "interruptsafe")]
+macro_rules! store_parent {
+    () => {
+        "mov qword ptr [rsp + 112], rax"
+    };
+}
+
+#[cfg(not(feature = "interruptsafe"))]
+macro_rules! store_parent {
+    () => {
+        "mov qword ptr [rsp + 56], rax"
+    };
+}
+
+#[cfg(feature = "interruptsafe")]
+macro_rules! restore_interrupts {
+    () => {
+        r#"
+        // If we have to be interrupt safe, restore non-return scratch registers
+        mov rdi, [rsp + 48]
+        mov rsi, [rsp + 56]
+        mov rcx, [rsp + 64]
+        mov r8, [rsp + 72]
+        mov r9, [rsp + 80]
+        mov r10, [rsp + 88]
+        mov r11, [rsp + 96]
+        "#
+    };
+}
+
+#[cfg(not(feature = "interruptsafe"))]
+macro_rules! restore_interrupts {
+    () => {
+        ""
+    };
+}
+
+#[cfg(target_feature = "sse2")]
+macro_rules! restore_sse2 {
+    () => {
+        r#"
+        movdqu xmm0, xmmword ptr [rsp + 16]
+        movdqu xmm1, xmmword ptr [rsp + 32]
+        "#
+    };
+}
+
+#[cfg(not(target_feature = "sse2"))]
+macro_rules! restore_sse2 {
+    () => {
+        ""
+    };
+}
+
+#[cfg(feature = "interruptsafe")]
+macro_rules! epilogue {
+    () => {
+        r#"
+        // here we added same amount back we substracted, since space is in rax push.
+        add rsp, 104
+        // This should also restore the interrupt flag?
+        popfq
+        "#
+    };
+}
+
+#[cfg(not(feature = "interruptsafe"))]
+macro_rules! epilogue {
+    () => {
+        r#"
+        // add 8 less back to rsp than we substracted. RET will pop the 'missing' value
+        add rsp, 56
+        "#
+    };
+}
+
 #[naked]
-pub extern "C" fn mcount_return_trampoline() {
+pub unsafe extern "C" fn mcount_return_trampoline() {
     // does 'nothing', except calling mcount_return. Takes care to not clobber any return registers.
     // based on https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
 
@@ -253,124 +394,29 @@ pub extern "C" fn mcount_return_trampoline() {
         RSP +0      rax
     */
 
-    unsafe {
-        /* space for locals (saved ret values) (if we dont back up xmm0+1, this is too much, but this won't hurt us) */
-        #[cfg(feature = "interruptsafe")]
-        llvm_asm!("push %rax"); // fake return value for later
-        #[cfg(feature = "interruptsafe")]
-        llvm_asm!("pushfq"); // flags for interrupt stuff
-        #[cfg(feature = "interruptsafe")]
-        llvm_asm!("cli"); // dont do interrupts here!
-        #[cfg(feature = "interruptsafe")]
-        llvm_asm!("sub $$104, %rsp");
-        #[cfg(not(feature = "interruptsafe"))]
-        llvm_asm!("sub $$64, %rsp");
-
-        /* always backup return registers */
-        llvm_asm!(
-            "
-            movq   %rdx,   8(%rsp)
-            movq   %rax,   0(%rsp)
-        "
-        );
-
-        /* when we compile against a 'kernel' target we do NOT have sse enabled, otherwise we might. Backup xmm0 and xmm1 */
-        /* even if we are in userspace code that could use sse2, we are guaranteed that mcount_return() will not clobber it in this case */
-        #[cfg(target_feature = "sse2")]
-        llvm_asm!(
-            "
-            movdqu %xmm0, 16(%rsp)
-            movdqu %xmm1, 32(%rsp)
-        "
-        );
-
-        // If we have to be interrupt safe, also backup non-return scratch registers
-        #[cfg(feature = "interruptsafe")]
-        llvm_asm!(
-            "
-            movq   %rdi,   48(%rsp)
-            movq   %rsi,   56(%rsp)
-            movq   %rcx,   64(%rsp)
-            movq   %r8,    72(%rsp)
-            movq   %r9,    80(%rsp)
-            movq   %r10,   88(%rsp)
-            movq   %r11,   96(%rsp)
-        "
-        );
-
-        llvm_asm!(
-            "
-            /* set the first argument of mcount_return as pointer to return values */
-            movq %rsp, %rdi
-
-            /* call mcount_return, which returns original parent address in rax. */
-            call mcount_return
-        "
-        );
-
+    asm!(
+        prologue!(),
+        // always backup return registers
+        "mov [rsp + 8], rdx",
+        "mov [rsp], rax",
+        backup_sse2!(),
+        backup_interrupts!(),
+        // set the first argument of mcount_return as pointer to return values
+        "mov rdi, rsp",
+        // call mcount_return, which returns original parent address in rax.
+        "call mcount_return",
         // Store original parent address at the correct stack location
-        #[cfg(not(feature = "interruptsafe"))]
-        llvm_asm!(
-            "
-            movq %rax, 56(%rsp)
-        "
-        );
-        #[cfg(feature = "interruptsafe")]
-        llvm_asm!(
-            "
-            movq %rax, 112(%rsp)
-        "
-        );
-
+        store_parent!(),
         // restore saved return values
-        llvm_asm!(
-            "
-            movq    0(%rsp), %rax
-            movq    8(%rsp), %rdx
-        "
-        );
-
-        // If we have to be interrupt safe, restore non-return scratch registers
-        #[cfg(feature = "interruptsafe")]
-        llvm_asm!(
-            "
-            movq   48(%rsp),   %rdi
-            movq   56(%rsp),   %rsi
-            movq   64(%rsp),   %rcx
-            movq   72(%rsp),   %r8
-            movq   80(%rsp),   %r9
-            movq   88(%rsp),   %r10
-            movq   96(%rsp),   %r11
-        "
-        );
-
-        /* Restore sse return values, if supported */
-        #[cfg(target_feature = "sse2")]
-        llvm_asm!(
-            "
-            movdqu 16(%rsp), %xmm0
-            movdqu 32(%rsp), %xmm1
-        "
-        );
-
-        /* add 8 less back to rsp than we substracted. RET will pop the 'missing' value */
-        #[cfg(not(feature = "interruptsafe"))]
-        llvm_asm!(
-            "
-            add $$56, %rsp
-        "
-        );
-
-        #[cfg(feature = "interruptsafe")]
-        llvm_asm!(
-            "
-            add $$104, %rsp
-        "
-        ); // here we added same amount back we substracted, since space is in rax push.
-        #[cfg(feature = "interruptsafe")]
-        llvm_asm!("popfq"); // This should also restore the interrupt flag?
-        llvm_asm!("ret");
-    }
+        "mov rax, [rsp]",
+        "mov rdx, [rsp + 8]",
+        restore_interrupts!(),
+        // Restore sse return values, if supported
+        restore_sse2!(),
+        epilogue!(),
+        "ret",
+        options(noreturn),
+    );
 }
 
 #[no_mangle]
