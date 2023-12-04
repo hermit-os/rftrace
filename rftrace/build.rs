@@ -74,9 +74,6 @@ fn build_backend() {
     // Always output color, so eventhough we are cargo-in-cargo, we get nice error messages on build fail
     cmd.args(&["--color", "always"]);
 
-    // Be very verbose
-    //cmd.arg("-vv");
-
     // Redirect stdout and err, so we have live progress of compilation (?)
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());
