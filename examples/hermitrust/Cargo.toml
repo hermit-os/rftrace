@@ -9,8 +9,5 @@ edition = "2018"
 rftrace = { version = "0.2.0", path="../../rftrace" }
 rftrace-frontend = { version = "0.1.0", path="../../rftrace-frontend" }
 
-
 [target.'cfg(target_os = "hermit")'.dependencies]
-#hermit-sys = {version="0.1.25", features=["instrument"]}
-hermit-sys = {git="https://github.com/tlambertz/rusty-hermit", branch="master", features=["instrument", "with_submodule"]}
-#hermit-sys = { path = "../../../rusty-hermit/hermit-sys", features = ["with_submodule", "instrument"] }
+hermit = { version = "0.7", git = "https://github.com/hermit-os/hermit-rs" }
