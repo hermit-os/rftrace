@@ -1,6 +1,8 @@
+use std::collections::HashSet;
 use std::env;
 use std::fs::{self, File};
 use std::io::prelude::*;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 fn prepare_staticlib_toml(out_dir: &str) -> std::io::Result<String> {
@@ -31,29 +33,12 @@ fn build_backend() {
     let full_target_dir = format!("{}/target_static", out_dir);
     let profile = env::var("PROFILE").expect("PROFILE was not set");
 
-    // Set the target. Can be overwritten via env-var.
-    // If feature autokernel is enabled, automatically 'convert' hermit to hermit-kernel target.
-    let target = {
-        println!("cargo:rerun-if-env-changed=RFTRACE_TARGET_TRIPLE");
-        env::var("RFTRACE_TARGET_TRIPLE").unwrap_or_else(|_| {
-            let default = env::var("TARGET").unwrap();
-            #[cfg(not(feature = "autokernel"))]
-            return default;
-            #[cfg(feature = "autokernel")]
-            if default == "x86_64-unknown-hermit" {
-                "x86_64-unknown-none-hermitkernel".to_owned()
-            } else {
-                default
-            }
-        })
-    };
-    println!("Compiling for target {}", target);
+    let target = "x86_64-unknown-none";
 
-    let mut cmd = Command::new("cargo");
+    let mut cmd = cargo();
     cmd.arg("build");
 
-    // Compile for the same target as the parent-lib
-    cmd.args(&["--target", &target]);
+    cmd.args(&["--target", target]);
 
     // Output all build artifacts in output dir of parent-lib
     cmd.args(&["--target-dir", &full_target_dir]);
@@ -81,10 +66,10 @@ fn build_backend() {
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());
 
-    // Build core, needed when compiling against a kernel-target, such as x86_64-unknown-none-hermitkernel.
-    // parent's cargo does NOT expose -Z flags as envvar, we therefore use a feature flag for this
-    #[cfg(feature = "buildcore")]
-    cmd.args(&["-Z", "build-std=core"]); // should be build std,alloc?
+    cmd.args(&[
+        "-Zbuild-std=core",
+        "-Zbuild-std-features=compiler-builtins-mem",
+    ]);
 
     // Compile staticlib as release if included in release build.
     if profile == "release" {
@@ -111,11 +96,22 @@ fn build_backend() {
     assert!(status.success(), "Unable to build tracer's static lib!");
     println!("Sub-cargo successful!");
 
-    // Link parent-lib against this staticlib
-    println!(
-        "cargo:rustc-link-search=native={}/{}/{}/",
-        &full_target_dir, &target, &profile
+    let dist_dir = format!("{}/{}/{}", &full_target_dir, &target, &profile);
+
+    retain_symbols(
+        Path::new(&format!("{}/librftrace_backend.a", &dist_dir)),
+        HashSet::from([
+            "mcount",
+            "rftrace_backend_disable",
+            "rftrace_backend_enable",
+            "rftrace_backend_get_events",
+            "rftrace_backend_get_events_index",
+            "rftrace_backend_init",
+        ]),
     );
+
+    // Link parent-lib against this staticlib
+    println!("cargo:rustc-link-search=native={}", &dist_dir);
     println!("cargo:rustc-link-lib=static=rftrace_backend");
 
     println!("cargo:rerun-if-changed=staticlib/Cargo.toml");
@@ -126,4 +122,109 @@ fn build_backend() {
 
 fn main() {
     build_backend();
+}
+
+/// Returns the Rustup proxy for Cargo.
+// Adapted from Hermit.
+fn cargo() -> Command {
+    let cargo = {
+        let exe = format!("cargo{}", env::consts::EXE_SUFFIX);
+        // On windows, the userspace toolchain ends up in front of the rustup proxy in $PATH.
+        // To reach the rustup proxy nonetheless, we explicitly query $CARGO_HOME.
+        let mut cargo_home = PathBuf::from(env::var_os("CARGO_HOME").unwrap());
+        cargo_home.push("bin");
+        cargo_home.push(&exe);
+        if cargo_home.exists() {
+            cargo_home
+        } else {
+            PathBuf::from(exe)
+        }
+    };
+
+    let mut cargo = Command::new(cargo);
+
+    // Remove rust-toolchain-specific environment variables from kernel cargo
+    cargo.env_remove("LD_LIBRARY_PATH");
+    env::vars()
+        .filter(|(key, _value)| key.starts_with("CARGO") || key.starts_with("RUST"))
+        .for_each(|(key, _value)| {
+            cargo.env_remove(&key);
+        });
+
+    cargo
+}
+
+/// Makes all internal symbols private to avoid duplicated symbols.
+///
+/// This allows us to have rftrace's copy of `core` alongside other potential copies in the final binary.
+/// This is important when combining different versions of `core`.
+/// Newer versions of `rustc` will throw an error on duplicated symbols.
+// Adapted from Hermit.
+pub fn retain_symbols(archive: &Path, mut exported_symbols: HashSet<&str>) {
+    use std::fmt::Write;
+
+    let prefix = "rftrace";
+
+    let all_symbols = {
+        let objcopy = binutil("nm").unwrap();
+        let output = Command::new(&objcopy)
+            .arg("--export-symbols")
+            .arg(archive)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        String::from_utf8(output.stdout).unwrap()
+    };
+
+    let symbol_renames = all_symbols
+        .lines()
+        .fold(String::new(), |mut output, symbol| {
+            if exported_symbols.remove(symbol) {
+                return output;
+            }
+
+            if let Some(symbol) = symbol.strip_prefix("_ZN") {
+                let prefix_len = prefix.len();
+                let _ = writeln!(output, "_ZN{symbol} _ZN{prefix_len}{prefix}{symbol}",);
+            } else {
+                let _ = writeln!(output, "{symbol} {prefix}_{symbol}");
+            }
+            output
+        });
+    assert!(exported_symbols.is_empty());
+
+    let rename_path = archive.with_extension("redefine_syms");
+    fs::write(&rename_path, symbol_renames).unwrap();
+
+    let objcopy = binutil("objcopy").unwrap();
+    let status = Command::new(&objcopy)
+        .arg("--redefine-syms")
+        .arg(&rename_path)
+        .arg(archive)
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    fs::remove_file(&rename_path).unwrap();
+}
+
+/// Returns the path to the requested binutil from the llvm-tools component.
+// Adapted from Hermit.
+fn binutil(name: &str) -> Result<PathBuf, String> {
+    let exe_suffix = env::consts::EXE_SUFFIX;
+    let exe = format!("llvm-{name}{exe_suffix}");
+
+    let path = llvm_tools::LlvmTools::new()
+		.map_err(|err| match err {
+			llvm_tools::Error::NotFound =>
+				"Could not find llvm-tools component\n\
+				\n\
+				Maybe the rustup component `llvm-tools` is missing? Install it through: `rustup component add llvm-tools`".to_string()
+			,
+			err => format!("{err:?}"),
+		})?
+		.tool(&exe)
+		.ok_or_else(|| format!("could not find {exe}"))?;
+
+    Ok(path)
 }
