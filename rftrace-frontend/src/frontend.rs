@@ -176,17 +176,10 @@ pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) 
             let mut procfile = File::open("/proc/self/maps")?;
             io::copy(&mut procfile, &mut mapfile)?;
         } else {
-            println!("  Creating ./sid-{}.map fake memory map file", sid);
+            println!("  Creating ./sid-{sid}.map fake memory map file");
 
-            writeln!(
-                mapfile,
-                "000000000000-ffffffffffff r-xp 00000000 00:00 0                          {}",
-                binary_name
-            )?;
-            writeln!(
-                mapfile,
-                "ffffffffffff-ffffffffffff rw-p 00000000 00:00 0                          [stack]"
-            )?;
+            writeln!(mapfile, "000000000000-ffffffffffff r-xp 00000000 00:00 0                          {binary_name}")?;
+            writeln!(mapfile, "ffffffffffff-ffffffffffff rw-p 00000000 00:00 0                          [stack]")?;
         }
     }
 
