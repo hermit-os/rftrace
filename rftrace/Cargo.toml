@@ -1,7 +1,10 @@
 [package]
 name = "rftrace"
 version = "0.2.0"
-authors = ["Thomas Lambertz <mail@thomaslambertz.de>"]
+authors = [
+    "Martin Kröning <mkroening@posteo.net>",
+    "Thomas Lambertz <mail@thomaslambertz.de>",
+]
 license = "MIT OR Apache-2.0"
 edition = "2018"
 build = "build.rs"
