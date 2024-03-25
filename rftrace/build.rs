@@ -48,17 +48,8 @@ fn build_backend() {
 
     cmd.arg("-Cpanic=abort");
 
-    // Ensure rustflags does NOT contain instrument-mcount!
-    let rustflags = env::var("RUSTFLAGS").unwrap_or_default();
-    if rustflags.contains("mcount") {
-        println!("WARNING: RUSTFLAGS contains mcount, trying to remove the key.");
-        cmd.env(
-            "RUSTFLAGS",
-            rustflags
-                .replace("-Z instrument-mcount", "")
-                .replace("-Z instrument_mcount", ""),
-        );
-    }
+    cmd.env_remove("RUSTFLAGS");
+    cmd.env_remove("CARGO_ENCODED_RUSTFLAGS");
 
     // Execute and get status.
     println!("Starting sub-cargo");
