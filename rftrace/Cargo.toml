@@ -1,7 +1,10 @@
 [package]
 name = "rftrace"
 version = "0.2.0"
-authors = ["Thomas Lambertz <mail@thomaslambertz.de>"]
+authors = [
+    "Martin Kröning <mkroening@posteo.net>",
+    "Thomas Lambertz <mail@thomaslambertz.de>",
+]
 license = "MIT OR Apache-2.0"
 edition = "2018"
 build = "build.rs"
@@ -10,7 +13,7 @@ keywords = ["tracing", "function", "uftrace", "mcount", "instrumentation"]
 categories = ["no-std", "development-tools::profiling"]
 description = "Function tracer backend. Logs all functions entries and exits. Works on all software compiled with mcount() instrumentation."
 readme = "README.md"
-repository = "https://github.com/tlambertz/rftrace"
+repository = "https://github.com/hermit-os/rftrace"
 
 include = [
     "**/*.rs",
