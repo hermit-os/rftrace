@@ -15,11 +15,11 @@ repository = "https://github.com/tlambertz/rftrace"
 include = [
     "**/*.rs",
     "Cargo.toml",
-    "staticlib/Cargo.nottoml",
 ]
 
 
 [features]
+staticlib = []
 interruptsafe = [] # backup and restore all scratch registers in the mcount_return trampoline. Needed if we instrument interrupt routines
 
 default = []

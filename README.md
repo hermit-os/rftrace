@@ -293,18 +293,6 @@ gdb /dev/null /proc/kcore -ex 'x/uw 0x'$(grep '\<tsc_khz\>' /proc/kallsyms | cut
 ```
 [StackOverflow: Getting TSC rate in x86 kernel](https://stackoverflow.com/questions/35123379/getting-tsc-rate-in-x86-kernel)
 
-### Build Process
-The build process is a bit weird, since we build a static rust library and then link against it.
-- cargo build
-    - runs `build.rs::build()`
-        - compiles part of the code as a native staticlib, by using the Cargo.toml in `/staticlib` and passing the staticlib feature to cargo build
-    - compiles the library as normal, without the staticlib feature and links the 'precompiled' static library from the previous step.
-
-We need the second manifest, since it is [not possible to change the library type outside of it](https://github.com/rust-lang/cargo/issues/6160#issuecomment-428778868).
-
-You can compile only static lib manually by renaming `rftrace/staticlib/Cargo.nottoml` to `rftrace/staticlib/Cargo.toml` and running 
-`cargo build --manifest-path rftrace/staticlib/Cargo.toml --target-dir target_static --features staticlib -vv`
-
 
 ## Future Work
 - create frontend which can output the trace over network, so no file access is needed

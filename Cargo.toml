@@ -1,16 +1,13 @@
 [workspace]
-
 members = [
-    "rftrace",
     "rftrace-frontend",
     "rftrace-frontend-ffi",
     "examples/rust",
     "examples/hermitrust",
 ]
-
-
-# re-define workspace here, else we get issues with sub-compiling libhermit-rs in the target folder of a workspace!
-# needed only for examples/hermitrust
 exclude = [
-    "target"
+    "rftrace",
+    # re-define workspace here, else we get issues with sub-compiling libhermit-rs in the target folder of a workspace!
+    # needed only for examples/hermitrust
+    "target",
 ]
