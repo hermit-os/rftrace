@@ -31,7 +31,6 @@ fn build_backend() {
     // Get envvars from cargo
     let out_dir = env::var("OUT_DIR").unwrap();
     let full_target_dir = format!("{}/target_static", out_dir);
-    let profile = env::var("PROFILE").expect("PROFILE was not set");
 
     let target = "x86_64-unknown-none";
 
@@ -71,10 +70,7 @@ fn build_backend() {
         "-Zbuild-std-features=compiler-builtins-mem",
     ]);
 
-    // Compile staticlib as release if included in release build.
-    if profile == "release" {
-        cmd.arg("--release");
-    }
+    cmd.arg("--release");
 
     // Ensure rustflags does NOT contain instrument-mcount!
     let rustflags = env::var("RUSTFLAGS").unwrap_or_default();
@@ -96,7 +92,7 @@ fn build_backend() {
     assert!(status.success(), "Unable to build tracer's static lib!");
     println!("Sub-cargo successful!");
 
-    let dist_dir = format!("{}/{}/{}", &full_target_dir, &target, &profile);
+    let dist_dir = format!("{}/{}/release", &full_target_dir, &target);
 
     retain_symbols(
         Path::new(&format!("{}/librftrace_backend.a", &dist_dir)),
