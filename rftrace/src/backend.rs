@@ -1,6 +1,6 @@
 use core::arch::x86_64::_rdtsc;
 use core::slice;
-use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use crate::interface::*;
 
@@ -17,9 +17,10 @@ struct SavedRet {
     pub childip: *const usize,
 }
 
-static mut ENABLED: bool = false;
-static mut OVERWRITING: bool = false; // should the ring-buffer be overwritten once full?
-static mut INDEX: AtomicUsize = AtomicUsize::new(0);
+#[no_mangle]
+static ENABLED: AtomicBool = AtomicBool::new(false);
+static OVERWRITING: AtomicBool = AtomicBool::new(false); // should the ring-buffer be overwritten once full?
+static INDEX: AtomicUsize = AtomicUsize::new(0);
 static mut EVENTS: Option<&mut [Event]> = None;
 
 // !! Will always be initialized to all 0 by the OS, no matter what. This is just to make the compiler happy
@@ -86,10 +87,16 @@ pub extern "C" fn mcount() {
 
     // based on https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
     unsafe {
-        if !ENABLED {
-            return;
-        }
         llvm_asm!("
+        // if ENABLED.load(Ordering::Relaxed) {
+        //     return;
+        // }
+        push %rax
+        movq ENABLED@GOTPCREL(%rip), %rax
+        movzbl (%rax), %eax
+        testb %al, %al
+        je 2f
+
         /* make some space for locals on the stack */
         sub $$48, %rsp
 
@@ -102,7 +109,7 @@ pub extern "C" fn mcount() {
         movq %r9,   0(%rsp)
 
         /* child addr = what function was mcount() called from */
-        movq 48(%rsp), %rsi
+        movq 56(%rsp), %rsi
 
         /* parent location = child-return-addr-ptr = what addr stores the location the child function was called from */
         /* needed, since we overwrite it with our own trampoline. This way we can determine when the child function returns */
@@ -116,13 +123,7 @@ pub extern "C" fn mcount() {
         /* pass mcount_args to mcount_entry's 3rd argument */
         push %rdx
 
-        /* save rax (implicit argument for variadic functions) */
-        push %rax
-
         call mcount_entry
-
-        /* restore rax */
-        pop  %rax
 
         /* restore original stack pointer */
         pop  %rdx
@@ -138,6 +139,9 @@ pub extern "C" fn mcount() {
 
         /* revert stack pointer to original location and return */
         add $$48, %rsp
+
+        2:
+        pop %rax
         retq
         ");
     }
@@ -146,7 +150,7 @@ pub extern "C" fn mcount() {
 #[no_mangle]
 pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const usize) {
     unsafe {
-        if ENABLED {
+        if ENABLED.load(Ordering::Relaxed) {
             let tid = match TID {
                 None => {
                     // We are not yet initialized, do it now
@@ -170,7 +174,7 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
             if let Some(events) = &mut EVENTS {
                 // Get current globally-unique-event-index
                 let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
-                if !OVERWRITING && cidx >= events.len() - MAX_STACK_HEIGHT {
+                if !OVERWRITING.load(Ordering::Relaxed) && cidx >= events.len() - MAX_STACK_HEIGHT {
                     disable();
                     return;
                 }
@@ -195,7 +199,9 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
                 // Maybe insert fake end, so uftrace is not confused and crashes because its internal function stack overflows.
                 if let Some(events) = &mut EVENTS {
                     let cidx = INDEX.fetch_add(1, Ordering::Relaxed);
-                    if !OVERWRITING && cidx >= events.len() - MAX_STACK_HEIGHT {
+                    if !OVERWRITING.load(Ordering::Relaxed)
+                        && cidx >= events.len() - MAX_STACK_HEIGHT
+                    {
                         disable();
                         return;
                     }
@@ -374,6 +380,7 @@ pub extern "C" fn mcount_return_trampoline() {
         ); // here we added same amount back we substracted, since space is in rax push.
         #[cfg(feature = "interruptsafe")]
         llvm_asm!("popfq"); // This should also restore the interrupt flag?
+        llvm_asm!("ret");
     }
 }
 
@@ -400,16 +407,11 @@ pub extern "C" fn mcount_return() -> *const usize {
 }
 
 fn disable() {
-    unsafe {
-        ENABLED = false;
-    }
+    ENABLED.store(false, Ordering::Relaxed);
 }
 
 fn enable() {
-    //println!("enabling mcount hooks..");
-    unsafe {
-        ENABLED = true;
-    }
+    ENABLED.store(true, Ordering::Relaxed);
 }
 
 fn set_eventbuf(eventbuf: &'static mut [Event]) {
@@ -427,7 +429,7 @@ fn set_eventbuf(eventbuf: &'static mut [Event]) {
 
 #[no_mangle]
 pub extern "C" fn rftrace_backend_get_events_index() -> usize {
-    return unsafe { INDEX.load(Ordering::Relaxed) };
+    return INDEX.load(Ordering::Relaxed);
 }
 
 #[no_mangle]
@@ -462,9 +464,7 @@ pub extern "C" fn rftrace_backend_init(bufptr: *mut Event, len: usize, overwriti
         "Event buffer has to be larger than maximum stack height!"
     );
 
-    unsafe {
-        OVERWRITING = overwriting;
-    }
+    OVERWRITING.store(overwriting, Ordering::Relaxed);
 
     set_eventbuf(eventbuf);
 }
