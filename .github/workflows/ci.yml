@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+  merge_group:
 
 jobs:
   fmt:
@@ -33,6 +36,8 @@ jobs:
           toolchain: nightly-2023-11-01
           components: llvm-tools
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build
         run: make
       - name: Run
@@ -62,6 +67,8 @@ jobs:
           toolchain: nightly-2023-11-01
           components: llvm-tools
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build
         run: cargo +nightly-2023-11-01 rustc -- -Zinstrument-mcount -C passes="ee-instrument<post-inline>"
       - name: Run
