@@ -9,7 +9,7 @@ keywords = ["tracing", "function", "uftrace", "mcount", "instrumentation"]
 categories = ["development-tools::profiling"]
 description = "Default rftracer frontend as a static library so it can be called from C code."
 readme = "README.md"
-repository = "https://github.com/tlambertz/rftrace"
+repository = "https://github.com/hermit-os/rftrace"
 
 [lib]
 crate-type = ["staticlib"]
