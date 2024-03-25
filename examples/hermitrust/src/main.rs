@@ -2,7 +2,7 @@ extern crate rftrace as _;
 use rftrace_frontend as rftrace;
 
 #[cfg(target_os = "hermit")]
-extern crate hermit_sys;
+extern crate hermit;
 
 use std::thread;
 use std::time::SystemTime;
