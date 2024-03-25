@@ -175,6 +175,15 @@ pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) 
             );
             let mut procfile = File::open("/proc/self/maps")?;
             io::copy(&mut procfile, &mut mapfile)?;
+        } else if #[cfg(target_os = "hermit")] {
+            extern "C" {
+                fn sys_image_start_addr() -> usize;
+            }
+
+            let addr = unsafe { sys_image_start_addr() };
+
+            writeln!(mapfile, "{addr:0>12x}-ffffffffffff r-xp 00000000 00:00 0                          {binary_name}")?;
+            writeln!(mapfile, "ffffffffffff-ffffffffffff rw-p 00000000 00:00 0                          [stack]")?;
         } else {
             println!("  Creating ./sid-{sid}.map fake memory map file");
 
