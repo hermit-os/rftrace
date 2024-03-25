@@ -1,7 +1,7 @@
 <!-- omit in toc -->
 # rftrace - Rust Function Tracer
 
-rftrace is a rust based function tracer. It provides both a backend, which does the actual tracing, and a frontend which write the traces to disk. The backend is designed to standalone and not interact with the system. As such it can be used to partially trace a kernel like [RustyHermit](https://github.com/hermitcore/libhermit-rs) though OS, interrupts, stdlib and application. Multiple threads are supported. It also works for normal Rust and C applications, though better tools exist for that usecase.
+rftrace is a rust based function tracer. It provides both a backend, which does the actual tracing, and a frontend which write the traces to disk. The backend is designed to standalone and not interact with the system. As such it can be used to partially trace a kernel like [the Hermit kernel](https://github.com/hermit-os/kernel) though OS, interrupts, stdlib and application. Multiple threads are supported. It also works for normal Rust and C applications, though better tools exist for that usecase.
 
 Requires a recent nightly rust compiler (as of 28-6-2020).
 
@@ -12,7 +12,7 @@ Requires a recent nightly rust compiler (as of 28-6-2020).
 - [Usage](#usage)
   - [Adding rftrace to your application](#adding-rftrace-to-your-application)
     - [Linux Rust application](#linux-rust-application)
-    - [RustyHermit](#rustyhermit)
+    - [Hermit](#hermit)
     - [Any other kernel](#any-other-kernel)
   - [Output Format](#output-format)
   - [Chrome trace viewer](#chrome-trace-viewer)
@@ -40,7 +40,7 @@ Requires a recent nightly rust compiler (as of 28-6-2020).
 
 
 ## Design
-I was in need of a function tracer, which works in both kernel and userspace to trace a [RustyHermit](https://github.com/hermitcore/libhermit-rs) application. Preferably without manually annotating source code, as a plug and play solution. Since RustyHermit also has a gcc toolchain, it should work with applications instrumented with both rustc and gcc.
+I was in need of a function tracer, which works in both kernel and userspace to trace a [Hermit](https://github.com/hermit-os) application. Preferably without manually annotating source code, as a plug and play solution. Since Hermit also has a gcc toolchain, it should work with applications instrumented with both rustc and gcc.
 
 The best way to do this is to use the function instrumentation provided by the compilers, where they insert `mcount()` calls in each function prologue. This is possible in gcc with the `-pg` flag, and in rustc with the newly added  `-Z instrument-mcount` flag. The same mechanism is used with success by eg [uftrace](https://github.com/namhyung/uftrace), which already provides [Rust Support](https://github.com/namhyung/uftrace/issues/594).
 
@@ -67,7 +67,7 @@ There are no other dependencies required for recording a trace. The output forma
 When tracing a custom kernel, it needs to provide the capability to write files into a directory, otherwise we cannot save the trace. It also needs to support thread-local-storage, since we use it as a shadow-return-stack and thread-id allocation.
 
 ## Usage
-There are 4 usage examples in `/examples`: Rust and C, both on normal Linux x64 and RustyHermit. These are the only tested architectures.
+There are 4 usage examples in `/examples`: Rust and C, both on normal Linux x64 and Hermit. These are the only tested architectures.
 
 ### Adding rftrace to your application
 #### Linux Rust application
@@ -110,8 +110,8 @@ fn main() {
 
 ```
 
-#### RustyHermit
-When tracing rusty-hermit, the backend is linked directly to the kernel. This is enabled with the `instrument` feature of hermit-sys (not upstream yet). Therefore we only need the frontend in our application. By using the instrument feature, the kernel is always instrumented. To additionally log functions calls of your application, set the `instrument-mcount` rustflag as seen above.
+#### Hermit
+When tracing Hermit, the backend is linked directly to the kernel. This is enabled with the `instrument` feature of the `hermit` crate. Therefore we only need the frontend in our application. By using the instrument feature, the kernel is always instrumented. To additionally log functions calls of your application, set the `instrument-mcount` rustflag as seen above.
 
 I further suggest using at least opt-level 2, else a lot of useless clutter will be created by the stdlib. (we are building it ourselves here with `-Z build-std=std,...` so it is affected by the instrument rustflag!)
 
@@ -119,7 +119,7 @@ An example with makefile, which does all the needed trace gathering, timing conv
 
 ```toml
 [dependencies]
-hermit-sys = { path = "../hermit-sys", default-features = false, features = ["instrument"] }
+hermit = { version = "0.8", default-features = false, features = ["instrument"] }
 rftrace = "0.1"
 ```
 
@@ -208,8 +208,8 @@ The simple case of only recoring ips is done with
 Since it has lots of features, is contains a lot of code. The most relevant part for us is `libmcount`. This is a library used with `LD_PRELOAD` which provides the `mcount()` call to the instrumented program. Even though libmcount can be build without dependencies, a lot of optional ones are there and used by default. I only need a very small part of it.
 
 Since libmcount is intended for userspace tracing, and I want to embed it into the hermit kernel, a number of issues arise:
-- use of shared-memory, 'mounted' via files to communicate the trace results between mcount and uftrace, which is not implemented in RustyHermit
-- all parameters get passed via environment variables, which are annoying to set when tracing RustyHermit
+- use of shared-memory, 'mounted' via files to communicate the trace results between mcount and uftrace, which is not implemented in Hermit
+- all parameters get passed via environment variables, which are annoying to set when tracing Hermit
 - no convenient on/off switch. We cannot trace everything, especially early boot
 - written in C -> always need gcc toolchain
 
