@@ -22,7 +22,7 @@ void main() {
     func1();
     func1();
     func1();
-    rftrace_dump_full_uftrace(events, "/tracedir", "example", false);
+    rftrace_dump_full_uftrace(events, "/tracedir", "example");
 
 }
 

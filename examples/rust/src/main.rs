@@ -6,7 +6,7 @@ fn main() {
     rftrace::enable();
     println!("Hello, world!");
     test1();
-    rftrace::dump_full_uftrace(events, "tracedir", "test", true).expect("");
+    rftrace::dump_full_uftrace(events, "tracedir", "test").expect("");
 }
 
 fn test1() {

@@ -22,6 +22,6 @@ void main() {
     func1();
     func1();
     func1();
-    rftrace_dump_full_uftrace(events, "tracedir", "test", true);
+    rftrace_dump_full_uftrace(events, "tracedir", "test");
 
 }

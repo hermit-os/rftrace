@@ -22,7 +22,7 @@ fn main() {
         .expect("Time went backwards");
     println!("Duration: {:?}", duration);
 
-    rftrace::dump_full_uftrace(events, "/tracedir", "test", false).expect("");
+    rftrace::dump_full_uftrace(events, "/tracedir", "test").expect("");
 }
 
 fn test1() {
