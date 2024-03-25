@@ -51,10 +51,10 @@ fn build_backend() {
 
     // Enable the staticlib feature, so we can do #[cfg(feature='staticlib')] gate our code
     // Pass-through interruptsafe and reexportsymbols features
-    let mut features = "staticlib".to_owned();
-    #[cfg(feature = "interruptsafe")]
-    features.push_str(",interruptsafe");
-    cmd.args(&["--features", &*features]);
+    cmd.arg("--features=staticlib");
+    if env::var_os("CARGO_FEATURE_INTERRUPTSAFE").is_some() {
+        cmd.arg("--features=interruptsafe");
+    }
 
     // Always output color, so eventhough we are cargo-in-cargo, we get nice error messages on build fail
     cmd.args(&["--color", "always"]);
