@@ -247,8 +247,9 @@ pub extern "C" fn mcount_return_trampoline() {
 
     /*
     Stack layout:
-        RBP +112
-            +104    RETURN-ADDRESS
+        RBP +120
+            +112    RETURN-ADDRESS
+            +104    rflags   |
             +96     r11      |
             +88     r10      |
             +80     r9       |
