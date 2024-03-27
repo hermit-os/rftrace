@@ -31,10 +31,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install uftrace
       - uses: mkroening/rust-toolchain-toml@main
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-2024-01-01
-          components: llvm-tools
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -62,15 +58,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install uftrace
       - uses: mkroening/rust-toolchain-toml@main
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-2024-01-01
-          components: llvm-tools
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build
-        run: cargo +nightly-2024-01-01 rustc -- -Zinstrument-mcount -C passes="ee-instrument<post-inline>"
+        run: cargo +nightly rustc -- -Zinstrument-mcount -C passes="ee-instrument<post-inline>"
       - name: Run
         run: |
           mkdir tracedir
