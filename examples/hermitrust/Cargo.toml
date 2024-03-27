@@ -1,6 +1,5 @@
 [package]
 name = "rftrace-hermit-rs-test"
-version = "0.1.0"
 authors = [
     "Martin Kröning <mkroening@posteo.net>",
     "Thomas Lambertz <mail@thomaslambertz.de>",
@@ -10,7 +9,7 @@ edition = "2018"
 
 [dependencies]
 rftrace = { version = "0.2.0", path="../../rftrace" }
-rftrace-frontend = { version = "0.1.0", path="../../rftrace-frontend" }
+rftrace-frontend = { version = "0.2.0", path="../../rftrace-frontend" }
 
 [target.'cfg(target_os = "hermit")'.dependencies]
 hermit = { version = "0.8" }
