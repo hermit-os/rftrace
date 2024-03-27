@@ -1,3 +1,4 @@
+use core::arch::asm;
 use core::arch::x86_64::_rdtsc;
 use core::slice;
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
