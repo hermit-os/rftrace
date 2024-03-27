@@ -9,4 +9,4 @@ edition = "2018"
 
 [dependencies]
 rftrace = { version = "0.2.0", path="../../rftrace" }
-rftrace-frontend = { version = "0.1.0", path="../../rftrace-frontend" }
+rftrace-frontend = { version = "0.2.0", path="../../rftrace-frontend" }
