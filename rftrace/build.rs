@@ -182,9 +182,9 @@ fn binutil(name: &str) -> Result<PathBuf, String> {
     let path = llvm_tools::LlvmTools::new()
 		.map_err(|err| match err {
 			llvm_tools::Error::NotFound =>
-				"Could not find llvm-tools component\n\
+				format!("Could not find llvm-tools component\n\
 				\n\
-				Maybe the rustup component `llvm-tools` is missing? Install it through: `rustup component add llvm-tools`".to_string()
+				Maybe the rustup component `llvm-tools` is missing? Install it through: `rustup component add --toolchain={} llvm-tools`", env::var("RUSTUP_TOOLCHAIN").unwrap()).to_string()
 			,
 			err => format!("{err:?}"),
 		})?
