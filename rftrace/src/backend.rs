@@ -1,4 +1,4 @@
-use core::arch::asm;
+use core::arch::naked_asm;
 use core::arch::x86_64::_rdtsc;
 use core::slice;
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -87,7 +87,7 @@ pub unsafe extern "C" fn mcount() {
     // mcounts ret addr is directly at rsp
 
     // based on https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
-    asm!(
+    naked_asm!(
         // if ENABLED.load(Ordering::Relaxed) {
         //     return;
         // }
@@ -132,7 +132,6 @@ pub unsafe extern "C" fn mcount() {
         "pop rax",
         "ret",
         // TODO: ENABLED = sym ENABLED,
-        options(noreturn),
     );
 }
 
@@ -395,7 +394,7 @@ pub unsafe extern "C" fn mcount_return_trampoline() {
         RSP +0      rax
     */
 
-    asm!(
+    naked_asm!(
         prologue!(),
         // always backup return registers
         "mov [rsp + 8], rdx",
@@ -416,7 +415,6 @@ pub unsafe extern "C" fn mcount_return_trampoline() {
         restore_sse2!(),
         epilogue!(),
         "ret",
-        options(noreturn),
     );
 }
 
