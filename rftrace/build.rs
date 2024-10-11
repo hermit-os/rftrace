@@ -1,8 +1,7 @@
 use std::collections::HashSet;
-use std::env;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::{env, fs};
 
 fn build_backend() {
     println!("Building Backend!");
@@ -85,7 +84,7 @@ fn main() {
     if env::var_os("CARGO_FEATURE_STATICLIB").is_some() {
         return;
     }
-    
+
     build_backend();
 }
 
