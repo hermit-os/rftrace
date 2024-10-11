@@ -43,7 +43,7 @@ jobs:
       - name: Replay
         run: uftrace replay --data=tracedir --output-fields=tid | tee ci.snap
       - name: Compare to snapshot
-        run: diff ci.snap out.snap
+        run: diff -u out.snap ci.snap
 
   rust:
     name: Rust
@@ -70,4 +70,4 @@ jobs:
       - name: Replay
         run: uftrace replay --data=tracedir --output-fields=tid | tee ci.snap
       - name: Compare to snapshot
-        run: diff ci.snap out.snap
+        run: diff -u out.snap ci.snap

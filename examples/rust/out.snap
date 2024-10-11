@@ -9,3 +9,13 @@
  [     1] |     } /* rftrace_rs_test::test3 */
  [     1] |   } /* rftrace_rs_test::test2 */
  [     1] | } /* rftrace_rs_test::test1 */
+ [     1] | rftrace_frontend::frontend::dump_full_uftrace() {
+ [     1] |   rftrace_frontend::frontend::dump_traces() {
+ [     1] |     rftrace_frontend::frontend::disable();
+
+uftrace stopped tracing with remaining functions
+================================================
+task: 1
+[1] rftrace_frontend::frontend::dump_traces
+[0] rftrace_frontend::frontend::dump_full_uftrace
+
