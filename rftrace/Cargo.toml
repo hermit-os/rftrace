@@ -31,6 +31,7 @@ default = []
 crate-type = ['staticlib', 'rlib']
 
 [build-dependencies]
+home = "0.5"
 llvm-tools = "0.1"
 
 #[profile.dev]
