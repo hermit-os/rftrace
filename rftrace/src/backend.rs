@@ -72,7 +72,7 @@ impl RetStack {
     }
 }
 
-#[naked]
+#[unsafe(naked)]
 #[no_mangle]
 pub unsafe extern "C" fn mcount() {
     // We need to be careful with hooked naked functions!
@@ -362,7 +362,7 @@ macro_rules! epilogue {
     };
 }
 
-#[naked]
+#[unsafe(naked)]
 pub unsafe extern "C" fn mcount_return_trampoline() {
     // does 'nothing', except calling mcount_return. Takes care to not clobber any return registers.
     // based on https://github.com/namhyung/uftrace/blob/master/arch/x86_64/mcount.S
