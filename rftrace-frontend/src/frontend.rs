@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::{self};
+use std::mem;
 
 use byteorder::{LittleEndian, WriteBytesExt};
 
@@ -56,9 +57,12 @@ pub fn init(max_event_count: usize, overwriting: bool) -> &'static mut Events {
         "Event buffer has to be larger than maximum stack height!"
     );
     let buf = vec![Event::Empty; max_event_count];
+    // intentionally leak here! stacks have to live until end of application.
+    let mut buf = mem::ManuallyDrop::new(buf);
+    let ptr = buf.as_mut_ptr();
+    let len = buf.len();
+    let cap = buf.capacity();
     unsafe {
-        // intentionally leak here! stacks have to live until end of application.
-        let (ptr, len, cap) = buf.into_raw_parts();
         rftrace_backend_init(ptr, cap, overwriting);
         // TODO: free this leaked box somewhere. Create a drop() function or similar?
         Box::leak(Box::new(Events { ptr, len, cap }))
