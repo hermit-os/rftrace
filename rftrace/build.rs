@@ -7,15 +7,14 @@ fn build_backend() {
     println!("Building Backend!");
     // Get envvars from cargo
     let out_dir = env::var("OUT_DIR").unwrap();
+    let target = env::var("TARGET").unwrap();
     let full_target_dir = format!("{}/target_static", out_dir);
-
-    let target = "x86_64-unknown-none";
 
     let mut cmd = cargo();
     cmd.arg("+nightly");
     cmd.arg("rustc");
 
-    cmd.args(&["--target", target]);
+    cmd.args(&["--target", target.as_str()]);
 
     // Output all build artifacts in output dir of parent-lib
     cmd.args(&["--target-dir", &full_target_dir]);
@@ -44,6 +43,8 @@ fn build_backend() {
     cmd.arg("--");
 
     cmd.arg("-Cpanic=abort");
+
+    cmd.arg("-Ctarget-feature=-mmx,-sse,-sse2,-sse3,-ssse3,-sse4.1,-sse4.2,-avx,-avx2,+soft-float");
 
     cmd.env_remove("RUSTFLAGS");
     cmd.env_remove("CARGO_ENCODED_RUSTFLAGS");
