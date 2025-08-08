@@ -31,9 +31,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install uftrace
       - uses: mkroening/rust-toolchain-toml@main
-      - uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build
         run: make
       - name: Run
@@ -58,9 +55,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install uftrace
       - uses: mkroening/rust-toolchain-toml@main
-      - uses: Swatinem/rust-cache@v2
-        with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build
         run: cargo +nightly rustc -- -Zinstrument-mcount -C passes="ee-instrument<post-inline>"
       - name: Run
