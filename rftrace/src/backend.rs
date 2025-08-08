@@ -2,8 +2,8 @@
 
 use core::arch::naked_asm;
 use core::arch::x86_64::_rdtsc;
-use core::slice;
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use core::{ptr, slice};
 
 use crate::interface::*;
 
@@ -30,9 +30,9 @@ static mut EVENTS: Option<&mut [Event]> = None;
 #[thread_local]
 static mut RETSTACK: RetStack = RetStack {
     stack: [SavedRet {
-        stackloc: 0 as *mut *const usize,
-        retloc: 0 as *const usize,
-        childip: 0 as *const usize,
+        stackloc: ptr::null_mut(),
+        retloc: ptr::null(),
+        childip: ptr::null(),
     }; MAX_STACK_HEIGHT],
     index: 0,
 };
@@ -470,12 +470,7 @@ pub extern "C" fn rftrace_backend_get_events_index() -> usize {
 
 #[no_mangle]
 pub extern "C" fn rftrace_backend_get_events() -> *const Event {
-    unsafe {
-        EVENTS
-            .take()
-            .map(|e| e.as_ptr())
-            .unwrap_or(0 as *const Event)
-    }
+    unsafe { EVENTS.take().map(|e| e.as_ptr()).unwrap_or_default() }
 }
 
 #[no_mangle]
