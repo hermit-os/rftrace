@@ -9,8 +9,8 @@ use crate::interface::*;
 
 #[derive(Clone, Copy)]
 struct RetStack {
-    pub stack: [SavedRet; MAX_STACK_HEIGHT],
     pub index: usize,
+    pub stack: [SavedRet; MAX_STACK_HEIGHT],
 }
 
 #[derive(Debug, Clone, Copy)]
