@@ -465,17 +465,17 @@ fn set_eventbuf(eventbuf: &'static mut [Event]) {
 
 #[no_mangle]
 pub extern "C" fn rftrace_backend_get_events_index() -> usize {
-    return INDEX.load(Ordering::Relaxed);
+    INDEX.load(Ordering::Relaxed)
 }
 
 #[no_mangle]
 pub extern "C" fn rftrace_backend_get_events() -> *const Event {
-    return unsafe {
+    unsafe {
         EVENTS
             .take()
             .map(|e| e.as_ptr())
             .unwrap_or(0 as *const Event)
-    };
+    }
 }
 
 #[no_mangle]
