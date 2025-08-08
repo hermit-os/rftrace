@@ -15,6 +15,8 @@ struct RetStack {
 
 #[derive(Debug, Clone, Copy)]
 struct SavedRet {
+    // FIXME:
+    #[expect(dead_code)]
     pub stackloc: *mut *const usize,
     pub retloc: *const usize,
     pub childip: *const usize,
