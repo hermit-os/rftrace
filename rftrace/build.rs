@@ -15,10 +15,10 @@ fn build_backend() {
     cmd.arg("+nightly");
     cmd.arg("rustc");
 
-    cmd.args(&["--target", target]);
+    cmd.args(["--target", target]);
 
     // Output all build artifacts in output dir of parent-lib
-    cmd.args(&["--target-dir", &full_target_dir]);
+    cmd.args(["--target-dir", &full_target_dir]);
 
     // Enable the staticlib feature, so we can do #[cfg(feature='staticlib')] gate our code
     // Pass-through interruptsafe and reexportsymbols features
@@ -28,13 +28,13 @@ fn build_backend() {
     }
 
     // Always output color, so eventhough we are cargo-in-cargo, we get nice error messages on build fail
-    cmd.args(&["--color", "always"]);
+    cmd.args(["--color", "always"]);
 
     // Redirect stdout and err, so we have live progress of compilation (?)
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());
 
-    cmd.args(&[
+    cmd.args([
         "-Zbuild-std=core",
         "-Zbuild-std-features=compiler-builtins-mem",
     ]);

@@ -2,6 +2,9 @@
 //! You can find a usage example in the [repository](https://github.com/hermit-os/rftrace/examples/c)
 //! A lot of documentation can be found in the parent workspaces [readme](https://github.com/hermit-os/rftrace).
 
+// FIXME:
+#![expect(clippy::missing_safety_doc)]
+
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
