@@ -1,3 +1,5 @@
+#![expect(static_mut_refs)]
+
 use core::arch::naked_asm;
 use core::arch::x86_64::_rdtsc;
 use core::slice;
