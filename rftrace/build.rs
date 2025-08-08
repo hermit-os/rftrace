@@ -5,6 +5,24 @@ use std::{env, fs};
 
 fn build_backend() {
     println!("Building Backend!");
+
+    println!("cargo::rerun-if-changed=src/thread_local.c");
+    cc::Build::new()
+        .file("src/thread_local.c")
+        .flags([
+            "-mno-mmx",
+            "-mno-sse",
+            "-mno-sse2",
+            "-mno-sse3",
+            "-mno-ssse3",
+            "-mno-sse4.1",
+            "-mno-sse4.2",
+            "-mno-avx",
+            "-mno-avx2",
+            "-msoft-float",
+        ])
+        .compile("thread_local");
+
     // Get envvars from cargo
     let out_dir = env::var("OUT_DIR").unwrap();
     let full_target_dir = format!("{}/target_static", out_dir);
