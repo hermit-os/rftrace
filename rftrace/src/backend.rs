@@ -7,16 +7,17 @@ use core::{ptr, slice};
 
 use crate::interface::*;
 
+#[repr(C)]
 #[derive(Clone, Copy)]
 struct RetStack {
     pub index: usize,
     pub stack: [SavedRet; MAX_STACK_HEIGHT],
 }
 
+#[repr(C)]
 #[derive(Debug, Clone, Copy)]
 struct SavedRet {
-    // FIXME:
-    #[expect(dead_code)]
+    // FIXME: this is dead code
     pub stackloc: *mut *const usize,
     pub retloc: *const usize,
     pub childip: *const usize,
