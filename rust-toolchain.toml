@@ -1,7 +1,3 @@
 [toolchain]
-components = [
-    "llvm-tools",
-    "rustfmt",
-    "clippy",
-]
+components = ["llvm-tools"]
 targets = ["x86_64-unknown-none"]
