@@ -1,6 +1,6 @@
 [toolchain]
 components = [
-    "llvm-tools-preview",
+    "llvm-tools",
     "rustfmt",
     "clippy",
 ]
