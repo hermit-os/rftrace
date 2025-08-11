@@ -1,6 +1,6 @@
 [package]
 name = "rftrace-frontend-ffi"
-version = "0.2.3"
+version = "0.3.0"
 authors = [
     "Martin Kröning <mkroening@posteo.net>",
     "Thomas Lambertz <mail@thomaslambertz.de>",
@@ -18,4 +18,4 @@ repository = "https://github.com/hermit-os/rftrace"
 crate-type = ["staticlib"]
 
 [dependencies]
-rftrace-frontend = {path="../rftrace-frontend", version="0.2"}
+rftrace-frontend = {path="../rftrace-frontend", version="0.3"}

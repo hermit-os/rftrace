@@ -75,8 +75,8 @@ There are 4 usage examples in `/examples`: Rust and C, both on normal Linux x64 
 To use rftrace, add both the backend and a frontend to your dependencies.
 ```toml
 [dependencies]
-rftrace = "0.2"
-rftrace-frontend = "0.2"
+rftrace = "0.3"
+rftrace-frontend = "0.3"
 ```
 
 Ensure that frame pointers are generated! Debug build always seem to have them enabled.
@@ -120,7 +120,7 @@ An example with makefile, which does all the needed trace gathering, timing conv
 ```toml
 [dependencies]
 hermit = { version = "0.8", default-features = false, features = ["instrument"] }
-rftrace = "0.2"
+rftrace = "0.3"
 ```
 
 #### Any other kernel
