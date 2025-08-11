@@ -1,6 +1,6 @@
 [package]
 name = "rftrace"
-version = "0.3.0"
+version = "0.3.1"
 authors = [
     "Martin Kröning <mkroening@posteo.net>",
     "Thomas Lambertz <mail@thomaslambertz.de>",
@@ -14,12 +14,6 @@ categories = ["no-std", "development-tools::profiling"]
 description = "Function tracer backend. Logs all functions entries and exits. Works on all software compiled with mcount() instrumentation."
 readme = "README.md"
 repository = "https://github.com/hermit-os/rftrace"
-
-include = [
-    "**/*.rs",
-    "Cargo.toml",
-]
-
 
 [features]
 staticlib = []
