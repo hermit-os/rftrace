@@ -30,7 +30,6 @@ fn build_backend() {
     let target = "x86_64-unknown-none";
 
     let mut cmd = cargo();
-    cmd.arg("+nightly");
     cmd.arg("rustc");
 
     cmd.args(["--target", target]);
