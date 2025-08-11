@@ -2,21 +2,23 @@
 
 use core::arch::naked_asm;
 use core::arch::x86_64::_rdtsc;
+use core::ffi::c_void;
+use core::slice;
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use core::{ptr, slice};
 
 use crate::interface::*;
 
+#[repr(C)]
 #[derive(Clone, Copy)]
 struct RetStack {
-    pub stack: [SavedRet; MAX_STACK_HEIGHT],
     pub index: usize,
+    pub stack: [SavedRet; MAX_STACK_HEIGHT],
 }
 
+#[repr(C)]
 #[derive(Debug, Clone, Copy)]
 struct SavedRet {
-    // FIXME:
-    #[expect(dead_code)]
+    // FIXME: this is dead code
     pub stackloc: *mut *const usize,
     pub retloc: *const usize,
     pub childip: *const usize,
@@ -28,19 +30,28 @@ static OVERWRITING: AtomicBool = AtomicBool::new(false); // should the ring-buff
 static INDEX: AtomicUsize = AtomicUsize::new(0);
 static mut EVENTS: Option<&mut [Event]> = None;
 
-// !! Will always be initialized to all 0 by the OS, no matter what. This is just to make the compiler happy
-#[thread_local]
-static mut RETSTACK: RetStack = RetStack {
-    stack: [SavedRet {
-        stackloc: ptr::null_mut(),
-        retloc: ptr::null(),
-        childip: ptr::null(),
-    }; MAX_STACK_HEIGHT],
-    index: 0,
-};
+#[repr(C)]
+struct Slice {
+    ptr: *mut c_void,
+    len: usize,
+}
 
-#[thread_local]
-static mut TID: Option<core::num::NonZeroU64> = None;
+extern "C" {
+    fn get_retstack() -> Slice;
+    fn get_tid() -> *mut u64;
+}
+
+unsafe fn retstack() -> &'static mut RetStack {
+    let Slice { ptr, len } = unsafe { get_retstack() };
+    debug_assert_eq!(len, core::mem::size_of::<RetStack>());
+    let ptr = ptr.cast::<RetStack>();
+    debug_assert!(ptr.is_aligned());
+    unsafe { &mut *ptr }
+}
+
+unsafe fn tid() -> &'static mut Option<core::num::NonZeroU64> {
+    unsafe { &mut *get_tid().cast() }
+}
 
 // Everytime we see a new thread (with emtpy thread-locals), we alloc out own TID
 static mut TID_NEXT: AtomicU64 = AtomicU64::new(1);
@@ -143,12 +154,13 @@ pub unsafe extern "C" fn mcount() {
 pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const usize) {
     unsafe {
         if ENABLED.load(Ordering::Relaxed) {
-            let tid = match TID {
+            let tid_ref = tid();
+            let tid = match *tid_ref {
                 None => {
                     // We are not yet initialized, do it now
                     // Would only fail if we overflow TID_NEXT, which is 64bit, then TID stays None (?)
-                    TID = core::num::NonZeroU64::new(TID_NEXT.fetch_add(1, Ordering::Relaxed));
-                    TID
+                    *tid_ref = core::num::NonZeroU64::new(TID_NEXT.fetch_add(1, Ordering::Relaxed));
+                    *tid_ref
                 }
                 Some(tid) => Some(tid),
             };
@@ -217,7 +229,7 @@ pub extern "C" fn mcount_entry(parent_ret: *mut *const usize, child_ret: *const 
                 // Do not overwrite ret-ptr if returnstack is full
                 // this will lead to truncation of the return events once a too big stack has been reached!
                 // TODO: warn the user about this?
-                if RETSTACK.push(sr).is_ok() {
+                if retstack().push(sr).is_ok() {
                     *parent_ret = mcount_return_trampoline as *const usize;
                 }
             }
@@ -426,7 +438,7 @@ pub unsafe extern "C" fn mcount_return_trampoline() {
 pub extern "C" fn mcount_return() -> *const usize {
     unsafe {
         let (original_ret, childip) = {
-            let sr = RETSTACK.pop().expect("retstack empty?");
+            let sr = retstack().pop().expect("retstack empty?");
 
             (sr.retloc, sr.childip)
         };
@@ -436,7 +448,7 @@ pub extern "C" fn mcount_return() -> *const usize {
             events[cidx % events.len()] = Event::Exit(Exit {
                 time: _rdtsc(),
                 from: childip,
-                tid: TID.as_ref().copied(),
+                tid: tid().as_ref().copied(),
             });
         }
 
