@@ -12,8 +12,7 @@ jobs:
       RUSTFLAGS: -Dwarnings
     steps:
       - uses: actions/checkout@v4
-      # FIXME: use stable once rftrace supports stable
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-none
       - run: cargo clippy --all-features
@@ -68,9 +67,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install uftrace
-      - uses: mkroening/rust-toolchain-toml@main
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools
       - name: Build
-        run: cargo +nightly rustc -- -Zinstrument-mcount -C passes="ee-instrument<post-inline>"
+        run: cargo rustc -- -Zinstrument-mcount -C passes="ee-instrument<post-inline>"
       - name: Run
         run: |
           mkdir tracedir

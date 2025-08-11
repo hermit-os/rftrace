@@ -30,7 +30,6 @@ fn build_backend() {
     let target = "x86_64-unknown-none";
 
     let mut cmd = cargo();
-    cmd.arg("+nightly");
     cmd.arg("rustc");
 
     cmd.args(["--target", target]);
@@ -51,11 +50,6 @@ fn build_backend() {
     // Redirect stdout and err, so we have live progress of compilation (?)
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());
-
-    cmd.args([
-        "-Zbuild-std=core",
-        "-Zbuild-std-features=compiler-builtins-mem",
-    ]);
 
     cmd.arg("--release");
 
