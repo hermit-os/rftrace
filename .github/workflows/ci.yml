@@ -12,9 +12,7 @@ jobs:
       RUSTFLAGS: -Dwarnings
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-none
+      - uses: mkroening/rust-toolchain-toml@main
       - run: cargo clippy --all-features
       - run: cargo clippy
         working-directory: ./rftrace
@@ -26,8 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: mkroening/rust-toolchain-toml@main
         with:
+          toolchain: nightly
           components: rustfmt
       - run: cargo fmt --all -- --check
 
@@ -67,9 +66,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install uftrace
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: mkroening/rust-toolchain-toml@main
         with:
-          components: llvm-tools
+          toolchain: nightly
       - name: Build
         run: cargo rustc -- -Zinstrument-mcount -C passes="ee-instrument<post-inline>"
       - name: Run
