@@ -52,11 +52,6 @@ fn build_backend() {
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());
 
-    cmd.args([
-        "-Zbuild-std=core",
-        "-Zbuild-std-features=compiler-builtins-mem",
-    ]);
-
     cmd.arg("--release");
 
     cmd.arg("--");
