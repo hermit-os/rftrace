@@ -15,12 +15,6 @@ description = "Function tracer backend. Logs all functions entries and exits. Wo
 readme = "README.md"
 repository = "https://github.com/hermit-os/rftrace"
 
-include = [
-    "**/*.rs",
-    "Cargo.toml",
-]
-
-
 [features]
 staticlib = []
 interruptsafe = [] # backup and restore all scratch registers in the mcount_return trampoline. Needed if we instrument interrupt routines
