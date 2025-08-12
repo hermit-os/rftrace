@@ -93,7 +93,9 @@ fn build_backend() {
 }
 
 fn main() {
-    if env::var_os("CARGO_FEATURE_STATICLIB").is_some() {
+    let is_staticlib = env::var_os("CARGO_FEATURE_STATICLIB").is_some();
+    let is_clippy = env::var_os("CLIPPY_ARGS").is_some();
+    if is_clippy | is_staticlib {
         return;
     }
 
