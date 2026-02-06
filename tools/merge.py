@@ -266,7 +266,7 @@ def merge():
     # if binary is specified, generate symbols for trace
     if args.binary:
         print("Generating symbols with nm")
-        nm_cmd = ['nm', '-n', args.binary]
+        nm_cmd = ['nm', '--demangle', '-n', args.binary]
         with open(f"{args.TRACE}/{args.binaryname}.sym", "w") as symbolfile:
             subprocess.run(nm_cmd, stdout=symbolfile)
     else:

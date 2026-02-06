@@ -71,7 +71,7 @@ pub fn init(max_event_count: usize, overwriting: bool) -> &'static mut Events {
 
 /// Dumps the traces with some faked metadata into the given folder. Uses the same format as uftrace, which should be used to parse them.
 ///
-/// Will NOT generate symbols! You can generate them with `nm -n $BINARY > binary_name.sym`
+/// Will NOT generate symbols! You can generate them with `nm --demangle -n $BINARY > binary_name.sym`
 ///
 /// # Arguments
 ///
@@ -198,7 +198,7 @@ pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) 
 
     if cfg!(target_os = "linux") {
         println!(
-            "\nYou should generate symbols with `nm -n $BINARY > {}/$BINARY.sym`",
+            "\nYou should generate symbols with `nm --demangle -n $BINARY > {}/$BINARY.sym`",
             out_dir
         );
         println!(
@@ -208,7 +208,7 @@ pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) 
         println!("      Needs to contain at least [stack] and the binaries you want symbols of.");
     } else {
         println!(
-            "\nYou should generate symbols with `nm -n $BINARY > {}/{}.sym`",
+            "\nYou should generate symbols with `nm --demangle -n $BINARY > {}/{}.sym`",
             out_dir, binary_name
         );
     }
