@@ -67,7 +67,7 @@ def create_fake_uftrace(dirname, tracefile, binary=None, PID=123, TID=42, SID=b"
     # generate symbols
     if binary:
         print("  Generating symbols with nm")
-        nm_cmd = ['nm', '-n', binary]
+        nm_cmd = ['nm', '--demangle', '-n', binary]
         with open(f"{dirname}/{EXENAME}.sym", "w") as symbolfile:
             subprocess.run(nm_cmd, stdout=symbolfile)
     else:

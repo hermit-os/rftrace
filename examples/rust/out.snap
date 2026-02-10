@@ -1,11 +1,13 @@
 #   TID     FUNCTION
- [     1] | core::fmt::rt::_<impl core::fmt::Arguments>::new_const();
+ [     1] | <core::fmt::Arguments>::from_str();
+ [     1] | __rustc::__rust_no_alloc_shim_is_unstable_v2();
+ [     1] | __rustc::__rust_alloc();
  [     1] | rftrace_rs_test::test1() {
- [     1] |   core::fmt::rt::_<impl core::fmt::Arguments>::new_const();
+ [     1] |   <core::fmt::Arguments>::from_str();
  [     1] |   rftrace_rs_test::test2() {
- [     1] |     core::fmt::rt::_<impl core::fmt::Arguments>::new_const();
+ [     1] |     <core::fmt::Arguments>::from_str();
  [     1] |     rftrace_rs_test::test3() {
- [     1] |       core::fmt::rt::_<impl core::fmt::Arguments>::new_const();
+ [     1] |       <core::fmt::Arguments>::from_str();
  [     1] |     } /* rftrace_rs_test::test3 */
  [     1] |   } /* rftrace_rs_test::test2 */
  [     1] | } /* rftrace_rs_test::test1 */

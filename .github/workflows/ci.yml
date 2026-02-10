@@ -66,6 +66,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install uftrace
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-binutils
       - uses: mkroening/rust-toolchain-toml@main
         with:
           toolchain: nightly
@@ -75,6 +78,7 @@ jobs:
         run: |
           mkdir tracedir
           ../../target/debug/rftrace-rs-test
+      - run: rust-nm --demangle --numeric-sort ../../target/debug/rftrace-rs-test | tee tracedir/rftrace-rs-test.sym
       - name: Replay
         run: uftrace replay --data=tracedir --output-fields=tid | tee ci.snap
       - name: Compare to snapshot

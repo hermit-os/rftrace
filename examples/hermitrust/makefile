@@ -19,7 +19,7 @@ run: default
 	sleep 1
 	sudo chmod 777 /tmp/vhostqemu
 	qemu-system-x86_64 -cpu qemu64,apic,fsgsbase,rdtscp,xsave,fxsr -enable-kvm -display none -smp 1 -m 1G -serial stdio -kernel $(RUSTY_LOADER) -initrd $(BINARY) -chardev socket,id=char0,path=/tmp/vhostqemu -device vhost-user-fs-pci,queue-size=1024,chardev=char0,tag=tracedir -object memory-backend-file,id=mem,size=1G,mem-path=/dev/shm,share=on -numa node,memdev=mem
-	nm -n $(BINARY) > tracedir/test.sym
+	nm --demangle -n $(BINARY) > tracedir/test.sym
 	uftrace dump -d tracedir --chrome > tracedir/trace.json
 
 

@@ -140,7 +140,7 @@ The full trace consists of 5+ files, 4 for metadata plus 1 per TID which contain
 - `/info`: general info about cpu, mem, cmdline, version
 - `/task.txt`: contains PID, TID, SID<->exename mapping
 - `/sid-<SID>.map`: contains mapping of addr to exename. By default, the memory map is faked. You can enable linux-mode, in which case `/proc/self/maps` is copied. 
-- `/<exename>.sym`: contains symbols of exe, like output of `nm -n` (has to be sorted!). Symbols are never generated and always have to be done by hand.
+- `/<exename>.sym`: contains symbols of exe, like output of `nm --demangle -n` (has to be sorted!). Symbols are never generated and always have to be done by hand.
 
 
 ### Chrome trace viewer
