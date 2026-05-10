@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::{self};
-use std::mem;
+use std::{io, mem};
 
 use byteorder::{LittleEndian, WriteBytesExt};
 
