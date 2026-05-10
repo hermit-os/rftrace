@@ -308,18 +308,16 @@ fn dump_traces(events: &mut Events, outpath: &Path, singlefile: bool) -> io::Res
                 Event::Exit(e) => {
                     if !singlefile && current_tid != &e.tid {
                         continue;
-                    };
+                    }
                     write_event(&mut out, e.time, e.from, 1);
                 }
                 Event::Entry(e) => {
                     if !singlefile && current_tid != &e.tid {
                         continue;
-                    };
+                    }
                     write_event(&mut out, e.time, e.to, 0);
                 }
-                Event::Empty => {
-                    continue;
-                }
+                Event::Empty => {}
             }
         }
 
