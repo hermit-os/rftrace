@@ -269,8 +269,10 @@ fn dump_traces(events: &mut Events, outpath: &Path, singlefile: bool) -> io::Res
     disable();
     println!("Saving traces to disk...!");
 
-    let (events, cidx) = get_events(events);
+    let (mut events, cidx) = get_events(events);
     let cidx = cidx % events.len();
+    events.rotate_left(cidx);
+    let events = events;
 
     // The following is somewhat inefficient, but is intended to solve two constraints:
     // - don't use too much memory. Here we have ~2x trace array.
@@ -281,7 +283,7 @@ fn dump_traces(events: &mut Events, outpath: &Path, singlefile: bool) -> io::Res
 
     // Gather all tids so we can assemble metadata
     let mut tids: Vec<Option<core::num::NonZeroU64>> = Vec::new();
-    for e in events[cidx..].iter().chain(events[..cidx].iter()) {
+    for e in &events {
         match e {
             Event::Exit(e) => {
                 if !tids.contains(&e.tid) {
@@ -305,7 +307,7 @@ fn dump_traces(events: &mut Events, outpath: &Path, singlefile: bool) -> io::Res
         let tid = current_tid.map_or(0, |tid| tid.get());
 
         println!("  Parsing TID {:?}...!", tid);
-        for e in events[cidx..].iter().chain(events[..cidx].iter()) {
+        for e in &events {
             match e {
                 Event::Exit(e) => {
                     if !singlefile && current_tid != &e.tid {
