@@ -98,7 +98,7 @@ pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) 
 
     // /info HEADER
     // magic
-    info.extend("Ftrace!\x00".as_bytes());
+    info.extend(b"Ftrace!\x00");
     // version. we are using version 4 of fileformat
     info.write_u32::<LittleEndian>(4)
         .expect("Write interrupted");
