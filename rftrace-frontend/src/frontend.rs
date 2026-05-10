@@ -5,7 +5,7 @@ use std::{io, mem};
 
 use byteorder::{LittleEndian, WriteBytesExt};
 
-use crate::interface::*;
+use crate::interface::{Event, MAX_STACK_HEIGHT};
 
 extern "C" {
     fn rftrace_backend_enable();
