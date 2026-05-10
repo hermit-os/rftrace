@@ -12,19 +12,19 @@ use std::path::Path;
 pub type Events = rftrace_frontend::Events;
 
 #[no_mangle]
-/// Wraps rftrace_frontend::enable()
+/// Wraps [`rftrace_frontend::enable`].
 pub unsafe extern "C" fn rftrace_enable() {
     rftrace_frontend::enable();
 }
 
 #[no_mangle]
-/// Wraps rftrace_frontend::disable();
+/// Wraps [`rftrace_frontend::disable`].
 pub unsafe extern "C" fn rftrace_disable() {
     rftrace_frontend::disable();
 }
 
 #[no_mangle]
-/// Wraps rftrace_frontend::init();
+/// Wraps [`rftrace_frontend::init`].
 pub unsafe extern "C" fn rftrace_init(max_event_count: usize, overwriting: bool) -> *mut Events {
     rftrace_frontend::init(max_event_count, overwriting)
 }
@@ -46,7 +46,7 @@ fn try_path_from_c_str(c_str: &CStr) -> Option<&Path> {
 }
 
 #[no_mangle]
-/// Wraps rftrace_frontend::dump_full_uftrace
+/// Wraps [`rftrace_frontend::dump_full_uftrace`].
 pub unsafe extern "C" fn rftrace_dump_full_uftrace(
     events: *mut Events,
     out_dir: *const c_char,
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn rftrace_dump_full_uftrace(
 }
 
 #[no_mangle]
-/// Wraps rftrace_frontend::dump_trace
+/// Wraps [`rftrace_frontend::dump_trace`].
 pub unsafe extern "C" fn rftrace_dump_trace(events: *mut Events, outfile: *const c_char) -> i64 {
     let Some(outfile) = try_path_from_c_str(CStr::from_ptr(outfile)) else {
         return -1;

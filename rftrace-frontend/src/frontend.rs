@@ -233,7 +233,7 @@ fn dump_full_uftrace_inner(
 /// The trace itself has the same format as uftrace, but is not directly parsable due to the missing metadata.
 ///
 /// # Format
-/// Packed array of uftrace_record structs
+/// Packed array of `uftrace_record` structs
 /// ```c
 /// struct uftrace_record {
 ///     uint64_t time;
@@ -243,6 +243,7 @@ fn dump_full_uftrace_inner(
 ///     uint64_t depth:  10;
 ///     uint64_t addr:   48; /* child ip or uftrace_event_id */
 /// };
+/// ```
 pub fn dump_trace<P: AsRef<Path>>(events: &mut Events, outfile: P) -> io::Result<()> {
     dump_traces(events, outfile.as_ref(), true).map(|_| ())
 }
