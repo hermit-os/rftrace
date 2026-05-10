@@ -300,7 +300,7 @@ fn dump_traces(events: &mut Events, outpath: &Path, singlefile: bool) -> io::Res
         // clear out vec in case it contains entries from previous tid
         out.clear();
 
-        let tid = current_tid.map_or(0, |tid| tid.get());
+        let tid = current_tid.map_or(0, core::num::NonZero::get);
 
         println!("  Parsing TID {tid:?}...!");
         for e in events[cidx..].iter().chain(events[..cidx].iter()) {
@@ -343,7 +343,7 @@ fn dump_traces(events: &mut Events, outpath: &Path, singlefile: bool) -> io::Res
     // Remove the options from the tids, using 0 for None
     Ok(tids
         .iter()
-        .map(|tid| tid.map_or(0, |tid| tid.get()))
+        .map(|tid| tid.map_or(0, core::num::NonZero::get))
         .collect())
 }
 
