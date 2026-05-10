@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::Path;
 use std::{io, mem};
 
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -78,7 +79,19 @@ pub fn init(max_event_count: usize, overwriting: bool) -> &'static mut Events {
 /// * `out_dir` - folder into which the resulting trace is dumped. Has to exist.
 /// * `binary_name` - only relevant for this symbol file. Generated metadata instructs uftrace where to look for it.
 ///
-pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) -> io::Result<()> {
+pub fn dump_full_uftrace<P: AsRef<Path>>(
+    events: &mut Events,
+    out_dir: P,
+    binary_name: &str,
+) -> io::Result<()> {
+    dump_full_uftrace_inner(events, out_dir.as_ref(), binary_name)
+}
+
+fn dump_full_uftrace_inner(
+    events: &mut Events,
+    out_dir: &Path,
+    binary_name: &str,
+) -> io::Result<()> {
     // arbitrary values for pid and sid
     let pid = 42;
     let sid = "00";
@@ -91,7 +104,7 @@ pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) 
         return Ok(());
     }
 
-    println!("Creating fake uftrace data dir at {}..", out_dir);
+    println!("Creating fake uftrace data dir at {}..", out_dir.display());
     println!("  Creating ./info");
     let mut info: Vec<u8> = Vec::new();
 
@@ -145,13 +158,13 @@ pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) 
     }
     writeln!(info)?;
 
-    let infofile = format!("{}/info", out_dir);
+    let infofile = out_dir.join("info");
     let mut infofile = File::create(infofile)?;
     infofile.write_all(&info[..])?;
     drop(infofile);
 
     println!("  Creating ./task.txt");
-    let taskfile = format!("{}/task.txt", out_dir);
+    let taskfile = out_dir.join("task.txt");
     let mut taskfile = File::create(taskfile)?;
     println!("    pid = {}", pid);
     println!("    sid = {}", sid);
@@ -166,7 +179,7 @@ pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) 
     }
     drop(taskfile);
 
-    let mapfilename = format!("{}/sid-{}.map", out_dir, sid);
+    let mapfilename = out_dir.join(format!("sid-{}.map", sid));
     let mut mapfile = File::create(mapfilename)?;
     cfg_if::cfg_if! {
         if #[cfg(target_os = "linux")] {
@@ -198,7 +211,7 @@ pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) 
     if cfg!(target_os = "linux") {
         println!(
             "\nYou should generate symbols with `nm --demangle -n $BINARY > {}/$BINARY.sym`",
-            out_dir
+            out_dir.display()
         );
         println!(
             "INFO: Linux mode is NOT fully supported yet! To get symbols working, you have to"
@@ -208,7 +221,8 @@ pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) 
     } else {
         println!(
             "\nYou should generate symbols with `nm --demangle -n $BINARY > {}/{}.sym`",
-            out_dir, binary_name
+            out_dir.display(),
+            binary_name
         );
     }
 
@@ -232,12 +246,11 @@ pub fn dump_full_uftrace(events: &mut Events, out_dir: &str, binary_name: &str) 
 ///     uint64_t depth:  10;
 ///     uint64_t addr:   48; /* child ip or uftrace_event_id */
 /// };
-pub fn dump_trace(events: &mut Events, outfile: &str) -> io::Result<()> {
-    dump_traces(events, outfile, true)?;
-    Ok(())
+pub fn dump_trace<P: AsRef<Path>>(events: &mut Events, outfile: P) -> io::Result<()> {
+    dump_traces(events, outfile.as_ref(), true).map(|_| ())
 }
 
-fn dump_traces(events: &mut Events, outpath: &str, singlefile: bool) -> io::Result<Vec<u64>> {
+fn dump_traces(events: &mut Events, outpath: &Path, singlefile: bool) -> io::Result<Vec<u64>> {
     // Uftraces trace format: a bunch of 64-bit fields, See https://github.com/namhyung/uftrace/wiki/Data-Format
     //
     // Array of 2x64 bit unsigned long: `[{time: u64, address: u64}, ...]`
@@ -316,15 +329,14 @@ fn dump_traces(events: &mut Events, outpath: &str, singlefile: bool) -> io::Resu
             let filename = if singlefile {
                 outpath.into()
             } else {
-                let file = format!("{}.dat", tid);
-                format!("{}/{}", outpath, file)
+                outpath.join(format!("{}.dat", tid))
             };
 
             println!(
                 "  Writing to disk: {} events, {} bytes ({})",
                 out.len() / 16,
                 out.len(),
-                filename
+                filename.display(),
             );
             let mut file = File::create(filename)?;
             file.write_all(&out[..])?;
