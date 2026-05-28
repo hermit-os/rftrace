@@ -5,7 +5,7 @@ use std::{io, mem};
 
 use byteorder::{LittleEndian, WriteBytesExt};
 
-use crate::interface::*;
+use crate::interface::{Event, MAX_STACK_HEIGHT};
 
 extern "C" {
     fn rftrace_backend_enable();
@@ -36,7 +36,7 @@ pub struct Events {
 fn get_events(events: &mut Events) -> (Vec<Event>, usize) {
     // Tell backend to not use the current buffer anymore.
     let ptr = unsafe { rftrace_backend_get_events() };
-    println!("{:?}, {:?}", ptr, events);
+    println!("{ptr:?}, {events:?}");
     assert!(ptr == events.ptr, "Event buffer pointer mismatch!");
 
     let eventvec = unsafe { Vec::from_raw_parts(events.ptr, events.len, events.cap) };
@@ -149,12 +149,12 @@ fn dump_full_uftrace_inner(
     println!("    cmdline = 'fakeuftrace'");
     writeln!(info, "cmdline:fakeuftrace")?;
     // taskinfo
-    println!("    tid = {:?}", tids);
+    println!("    tid = {tids:?}");
     writeln!(info, "taskinfo:lines=2")?;
     writeln!(info, "taskinfo:nr_tid={}", tids.len())?;
     write!(info, "taskinfo:tids={}", tids[0])?;
     for tid in &tids[1..] {
-        write!(info, ",{}", tid)?;
+        write!(info, ",{tid}")?;
     }
     writeln!(info)?;
 
@@ -166,28 +166,26 @@ fn dump_full_uftrace_inner(
     println!("  Creating ./task.txt");
     let taskfile = out_dir.join("task.txt");
     let mut taskfile = File::create(taskfile)?;
-    println!("    pid = {}", pid);
-    println!("    sid = {}", sid);
-    println!("    exe = {}", binary_name);
+    println!("    pid = {pid}");
+    println!("    sid = {sid}");
+    println!("    exe = {binary_name}");
     writeln!(
         taskfile,
-        "SESS timestamp=0.0 pid={} sid={} exename=\"{}\"",
-        pid, sid, binary_name
+        "SESS timestamp=0.0 pid={pid} sid={sid} exename={binary_name:?}",
     )?;
     for tid in tids {
-        writeln!(taskfile, "TASK timestamp=0.0 tid={} pid={}", tid, pid)?;
+        writeln!(taskfile, "TASK timestamp=0.0 tid={tid} pid={pid}")?;
     }
     drop(taskfile);
 
-    let mapfilename = out_dir.join(format!("sid-{}.map", sid));
+    let mapfilename = out_dir.join(format!("sid-{sid}.map"));
     let mut mapfile = File::create(mapfilename)?;
     cfg_if::cfg_if! {
         if #[cfg(target_os = "linux")] {
             // see uftrace's record_proc_maps(..)
             // TODO: implement section-merging
             println!(
-                "  Creating (incorrect) ./sid-{}.map by copying /proc/self/maps",
-                sid
+                "  Creating (incorrect) ./sid-{sid}.map by copying /proc/self/maps"
             );
             let mut procfile = File::open("/proc/self/maps")?;
             io::copy(&mut procfile, &mut mapfile)?;
@@ -220,9 +218,8 @@ fn dump_full_uftrace_inner(
         println!("      Needs to contain at least [stack] and the binaries you want symbols of.");
     } else {
         println!(
-            "\nYou should generate symbols with `nm --demangle -n $BINARY > {}/{}.sym`",
-            out_dir.display(),
-            binary_name
+            "\nYou should generate symbols with `nm --demangle -n $BINARY > {}/{binary_name}.sym`",
+            out_dir.display()
         );
     }
 
@@ -236,7 +233,7 @@ fn dump_full_uftrace_inner(
 /// The trace itself has the same format as uftrace, but is not directly parsable due to the missing metadata.
 ///
 /// # Format
-/// Packed array of uftrace_record structs
+/// Packed array of `uftrace_record` structs
 /// ```c
 /// struct uftrace_record {
 ///     uint64_t time;
@@ -246,6 +243,7 @@ fn dump_full_uftrace_inner(
 ///     uint64_t depth:  10;
 ///     uint64_t addr:   48; /* child ip or uftrace_event_id */
 /// };
+/// ```
 pub fn dump_trace<P: AsRef<Path>>(events: &mut Events, outfile: P) -> io::Result<()> {
     dump_traces(events, outfile.as_ref(), true).map(|_| ())
 }
@@ -302,26 +300,24 @@ fn dump_traces(events: &mut Events, outpath: &Path, singlefile: bool) -> io::Res
         // clear out vec in case it contains entries from previous tid
         out.clear();
 
-        let tid = current_tid.map_or(0, |tid| tid.get());
+        let tid = current_tid.map_or(0, core::num::NonZero::get);
 
-        println!("  Parsing TID {:?}...!", tid);
+        println!("  Parsing TID {tid:?}...!");
         for e in events[cidx..].iter().chain(events[..cidx].iter()) {
             match e {
                 Event::Exit(e) => {
                     if !singlefile && current_tid != &e.tid {
                         continue;
-                    };
+                    }
                     write_event(&mut out, e.time, e.from, 1);
                 }
                 Event::Entry(e) => {
                     if !singlefile && current_tid != &e.tid {
                         continue;
-                    };
+                    }
                     write_event(&mut out, e.time, e.to, 0);
                 }
-                Event::Empty => {
-                    continue;
-                }
+                Event::Empty => {}
             }
         }
 
@@ -329,7 +325,7 @@ fn dump_traces(events: &mut Events, outpath: &Path, singlefile: bool) -> io::Res
             let filename = if singlefile {
                 outpath.into()
             } else {
-                outpath.join(format!("{}.dat", tid))
+                outpath.join(format!("{tid}.dat"))
             };
 
             println!(
@@ -347,7 +343,7 @@ fn dump_traces(events: &mut Events, outpath: &Path, singlefile: bool) -> io::Res
     // Remove the options from the tids, using 0 for None
     Ok(tids
         .iter()
-        .map(|tid| tid.map_or(0, |tid| tid.get()))
+        .map(|tid| tid.map_or(0, core::num::NonZero::get))
         .collect())
 }
 

@@ -20,7 +20,7 @@ fn main() {
     let duration = SystemTime::now()
         .duration_since(start)
         .expect("Time went backwards");
-    println!("Duration: {:?}", duration);
+    println!("Duration: {duration:?}");
 
     rftrace::dump_full_uftrace(events, "/tracedir", "test").expect("");
 }
@@ -46,7 +46,7 @@ fn threads() {
     for i in 0..4 {
         // Spin up another thread
         children.push(thread::spawn(move || {
-            println!("this is thread number {}", i);
+            println!("this is thread number {i}");
         }));
     }
 
